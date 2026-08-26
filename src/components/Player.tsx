@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Plus } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Plus, Heart } from 'lucide-react';
 import { useRoomStore } from '../store';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import AddToPlaylistModal from './AddToPlaylistModal';
@@ -16,15 +16,14 @@ const formatTime = (timeInSeconds: number) => {
 };
 
 export default function Player() {
-  const { currentSong, roomId, listeners, togglePlay: storeTogglePlay } = useRoomStore();
+  const { currentSong, roomId, listeners, togglePlay: storeTogglePlay, isPlaying: storeIsPlaying, roomRole } = useRoomStore();
   const { 
-    isPlaying, 
+    isPlaying: audioIsPlaying, 
     currentTime: localProgress, 
     duration, 
     play,
     pause, 
     seek, 
-    togglePlay: audioTogglePlay,
     playNext,
     playPrevious
   } = useAudioPlayer();
@@ -33,12 +32,15 @@ export default function Player() {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
   const { user } = useRoomStore();
 
   // Fetch the actual audio stream URL when a new song is selected
+  // and log it to history
   useEffect(() => {
-    if (currentSong?.id || currentSong?._id) {
-      const songId = currentSong.id || currentSong._id;
+    // Priority: songId (Saavn/platform ID from DB) > id > _id (MongoDB ObjectId - won't work with music API)
+    const resolvedId = currentSong?.songId || currentSong?.id;
+    if (resolvedId) {
       const fetchStreamUrl = async () => {
         try {
           const params = new URLSearchParams({
@@ -46,7 +48,7 @@ export default function Player() {
             artist: currentSong.artist || currentSong.subtitle || '',
             image: currentSong.image || ''
           });
-          const data = await authenticatedFetch(`/song/${songId}?${params}`);
+          const data = await authenticatedFetch(`/song/${resolvedId}?${params}`);
           if (data.streamUrl) {
             setStreamUrl(data.streamUrl);
           }
@@ -54,13 +56,40 @@ export default function Player() {
           console.error("Failed to fetch stream URL", error);
         }
       };
+      
+      const recordHistory = async () => {
+        if (!user) return;
+        try {
+          await authenticatedFetch('/user/history', {
+            method: 'POST',
+            body: JSON.stringify({ songId: resolvedId })
+          });
+        } catch (err) {
+          console.error("Failed to record history", err);
+        }
+      };
+
+      const checkLikedStatus = async () => {
+        if (!user) return;
+        try {
+          const likedSongs = await authenticatedFetch('/user/liked');
+          const liked = likedSongs.some((s: any) => s.songId === resolvedId);
+          setIsLiked(liked);
+        } catch (err) {
+          console.error("Failed to fetch liked status", err);
+        }
+      };
+
       fetchStreamUrl();
+      recordHistory();
+      checkLikedStatus();
     }
-  }, [currentSong?.id, currentSong?._id]);
+  }, [currentSong?.songId, currentSong?.id, currentSong?.title, currentSong?.artist, currentSong?.subtitle, currentSong?.image, user]);
+
 
   // When streamUrl is ready, pass it to the global audio manager
   useEffect(() => {
-    if (streamUrl && currentSong) {
+    if (streamUrl && currentSong && storeIsPlaying) {
       play(streamUrl, {
         title: currentSong.title,
         artist: currentSong.artist || currentSong.subtitle,
@@ -69,7 +98,18 @@ export default function Player() {
         ]
       });
     }
-  }, [streamUrl, currentSong, play]);
+  }, [streamUrl, currentSong, play, storeIsPlaying]);
+
+  // Keep local audio in sync with the room's global play state
+  useEffect(() => {
+    if (!streamUrl) return;
+
+    if (storeIsPlaying && !audioIsPlaying) {
+      play(); // resume
+    } else if (!storeIsPlaying && audioIsPlaying) {
+      pause(); // pause
+    }
+  }, [storeIsPlaying, audioIsPlaying, streamUrl, play, pause]);
 
   const handleProgressClick = (e: MouseEvent<HTMLDivElement>) => {
     if (!progressRef.current || !duration) return;
@@ -91,12 +131,35 @@ export default function Player() {
 
   const handleTogglePlay = () => {
     storeTogglePlay();
-    audioTogglePlay();
+  };
+
+  const handleLikeClick = async () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    const resolvedId = currentSong?.songId || currentSong?.id;
+    if (!resolvedId) return;
+
+    try {
+      // Optimistic update
+      setIsLiked(!isLiked);
+      const res = await authenticatedFetch('/user/liked/toggle', {
+        method: 'POST',
+        body: JSON.stringify({ songId: resolvedId })
+      });
+      setIsLiked(res.liked);
+    } catch (err) {
+      console.error("Failed to toggle like", err);
+      setIsLiked(!isLiked); // Revert
+    }
   };
 
   if (!currentSong) return null;
 
   const progressPercent = duration > 0 ? (localProgress / duration) * 100 : 0;
+  const isListener = roomId && roomRole === 'MEMBER';
+  const controlDisabledClass = isListener ? 'opacity-40 cursor-not-allowed pointer-events-none' : '';
 
   return (
     <div className="fixed bottom-0 left-0 w-full md:pl-20 lg:pl-60 z-[100]">
@@ -111,30 +174,42 @@ export default function Player() {
           />
           <div className="overflow-hidden">
             <h4 className="text-white font-bold text-sm line-clamp-1">{currentSong.title}</h4>
-            <p className="text-secondary text-xs font-medium line-clamp-1">{currentSong.artist}</p>
+            <p className="text-secondary text-xs font-medium line-clamp-1">{currentSong.artist || currentSong.subtitle}</p>
           </div>
-          <button 
-            onClick={handleAddClick}
-            className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/20 transition-colors text-secondary hover:text-white shrink-0 ml-auto md:ml-2"
-            title="Add to Playlist"
-          >
-            <Plus size={16} />
-          </button>
+          
+          <div className="flex items-center gap-1 ml-auto md:ml-2">
+            <button 
+              onClick={handleLikeClick}
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${isLiked ? 'text-accent hover:text-green-400' : 'text-secondary hover:text-white bg-white/5 hover:bg-white/20'}`}
+              title={isLiked ? "Unlike" : "Like"}
+            >
+              <Heart size={16} fill={isLiked ? "currentColor" : "none"} />
+            </button>
+            <button 
+              onClick={handleAddClick}
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/20 transition-colors text-secondary hover:text-white shrink-0"
+              title="Add to Playlist"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Controls & Progress */}
         <div className="flex flex-col items-center w-full md:w-1/3 order-first md:order-none">
           <div className="flex items-center gap-6 mb-2">
-            <button onClick={playPrevious} className="text-secondary hover:text-white transition-colors">
+            <button onClick={playPrevious} className={`text-secondary hover:text-white transition-colors ${controlDisabledClass}`} disabled={!!isListener} title={isListener ? 'Only the host can control playback' : 'Previous'}>
               <SkipBack size={20} fill="currentColor" />
             </button>
             <button 
               onClick={handleTogglePlay}
-              className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_15px_rgba(255,255,255,0.2)]"
+              className={`w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_15px_rgba(255,255,255,0.2)] ${controlDisabledClass}`}
+              disabled={!!isListener}
+              title={isListener ? 'Only the host can control playback' : storeIsPlaying ? 'Pause' : 'Play'}
             >
-              {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
+              {storeIsPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
             </button>
-            <button onClick={playNext} className="text-secondary hover:text-white transition-colors">
+            <button onClick={playNext} className={`text-secondary hover:text-white transition-colors ${controlDisabledClass}`} disabled={!!isListener} title={isListener ? 'Only the host can control playback' : 'Next'}>
               <SkipForward size={20} fill="currentColor" />
             </button>
           </div>
@@ -147,8 +222,8 @@ export default function Player() {
             
             <div 
               ref={progressRef}
-              className="flex-1 h-1.5 md:h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer hover:h-2 transition-all group"
-              onClick={handleProgressClick}
+              className={`flex-1 h-1.5 md:h-1 bg-white/10 rounded-full overflow-hidden transition-all group ${isListener ? 'cursor-not-allowed' : 'cursor-pointer hover:h-2'}`}
+              onClick={isListener ? undefined : handleProgressClick}
             >
               <div 
                 className="h-full bg-white rounded-full group-hover:bg-accent transition-colors" 

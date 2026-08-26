@@ -7,6 +7,7 @@ import Rooms from './pages/Rooms';
 import RoomDashboard from './pages/RoomDashboard';
 import Library from './pages/Library';
 import PlaylistView from './pages/PlaylistView';
+import LikedSongsView from './pages/LikedSongsView';
 import Player from './components/Player';
 
 function App() {
@@ -44,6 +45,7 @@ function App() {
           <Route path="/rooms" element={<Rooms />} />
           <Route path="/rooms/:roomId" element={<RoomDashboard />} />
           <Route path="/library" element={<Library />} />
+          <Route path="/library/liked" element={<LikedSongsView />} />
           <Route path="/library/:playlistId" element={<PlaylistView />} />
           {/* Add more routes here later */}
           <Route path="*" element={<Home />} />

@@ -77,7 +77,7 @@ export default function RoomDashboard() {
           <div className="flex flex-col items-center animate-in zoom-in duration-500 w-full max-w-sm text-center">
             <div className={`relative w-64 h-64 md:w-80 md:h-80 mb-8 rounded-[40px] overflow-hidden shadow-2xl transition-transform duration-700 ${isPlaying ? 'scale-100' : 'scale-95 grayscale-[30%]'}`}>
               <img 
-                src={currentSong.image_url} 
+                src={currentSong.image || currentSong.image_url} 
                 alt={currentSong.title}
                 className="w-full h-full object-cover"
               />
@@ -117,7 +117,7 @@ export default function RoomDashboard() {
             messages.map((msg, idx) => (
               <div key={idx} className="flex flex-col animate-in slide-in-from-bottom-2 fade-in duration-300">
                 <span className="text-xs font-bold text-white/50 mb-1 ml-1">{msg.username}</span>
-                <div className="bg-white/10 backdrop-blur-md w-fit max-w-[85%] px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm border border-white/5">
+                <div className="bg-white/10 backdrop-blur-md w-fit max-w-[85%] px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm border border-white/5 break-words">
                   {msg.message}
                 </div>
               </div>

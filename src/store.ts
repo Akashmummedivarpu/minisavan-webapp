@@ -25,6 +25,7 @@ interface RoomState {
 
   // Room & Playback State
   roomId: string | null;
+  roomRole: string | null; // 'ADMIN' | 'CONTROLLER' | 'MEMBER'
   isPlaying: boolean;
   currentTime: number;
   currentSong: any | null;
@@ -57,7 +58,11 @@ export const useRoomStore = create<RoomState>()(
           set({ 
             isPlaying: data.playbackState.status === 'PLAYING', 
             currentTime: data.playbackState.positionMs / 1000, 
-            currentSong: data.playbackState.currentSong 
+            currentSong: data.playbackState.currentSong,
+            // Use real-time count from server if provided
+            listeners: data.listenerCount ?? get().listeners,
+            // Capture the user's role in this room
+            roomRole: data.role ?? get().roomRole
           });
         }
       });
@@ -78,12 +83,20 @@ export const useRoomStore = create<RoomState>()(
         });
       });
 
-      socket.on('room:member-joined', () => {
-        set((state) => ({ listeners: state.listeners + 1 }));
+      socket.on('room:member-joined', (data) => {
+        if (data.listenerCount !== undefined) {
+          set({ listeners: data.listenerCount });
+        } else {
+          set((state) => ({ listeners: state.listeners + 1 }));
+        }
       });
 
-      socket.on('room:member-left', () => {
-        set((state) => ({ listeners: Math.max(0, state.listeners - 1) }));
+      socket.on('room:member-left', (data) => {
+        if (data.listenerCount !== undefined) {
+          set({ listeners: data.listenerCount });
+        } else {
+          set((state) => ({ listeners: Math.max(0, state.listeners - 1) }));
+        }
       });
 
       socket.on('room:chat-message', (message: ChatMessage) => {
@@ -101,6 +114,7 @@ export const useRoomStore = create<RoomState>()(
 
         // Room
         roomId: null,
+        roomRole: null,
         isPlaying: false,
         currentTime: 0,
         currentSong: null,
@@ -127,20 +141,24 @@ export const useRoomStore = create<RoomState>()(
           const { roomId } = get();
           if (roomId) socket.emit('room:leave', { roomId });
           socket.disconnect();
-          set({ roomId: null, isPlaying: false, currentSong: null, messages: [] });
+          set({ roomId: null, roomRole: null, isPlaying: false, currentSong: null, messages: [] });
         },
 
         playSong: (song) => {
-          const { roomId } = get();
+          const { roomId, roomRole } = get();
+          // Only ADMIN/CONTROLLER can change tracks in a room
+          if (roomId && roomRole === 'MEMBER') return;
           set({ currentSong: song, isPlaying: true });
           
           if (roomId) {
-            socket.emit('room:change-track', { roomId, currentSongId: song._id || song.id });
+            socket.emit('room:change-track', { roomId, song });
           }
         },
 
         togglePlay: () => {
-          const { isPlaying, roomId, currentTime } = get();
+          const { isPlaying, roomId, currentTime, roomRole } = get();
+          // Only ADMIN/CONTROLLER can toggle play in a room
+          if (roomId && roomRole === 'MEMBER') return;
           const nextState = !isPlaying;
           set({ isPlaying: nextState });
 
@@ -154,7 +172,9 @@ export const useRoomStore = create<RoomState>()(
         },
 
         seek: (time) => {
-          const { roomId } = get();
+          const { roomId, roomRole } = get();
+          // Only ADMIN/CONTROLLER can seek in a room
+          if (roomId && roomRole === 'MEMBER') return;
           set({ currentTime: time });
           if (roomId) {
             socket.emit('room:seek', { roomId, positionMs: time * 1000 });
@@ -187,7 +207,11 @@ export const useRoomStore = create<RoomState>()(
             playSong(queue[nextIndex]);
           } else {
             // Stop playing if queue is empty or at end
+            const { roomId } = get();
             set({ currentSong: null, isPlaying: false, currentIndex: -1 });
+            if (roomId) {
+              socket.emit('room:change-track', { roomId, song: null });
+            }
           }
         },
 
@@ -212,3 +236,7 @@ export const useRoomStore = create<RoomState>()(
     }
   )
 );
+
+if (typeof window !== 'undefined') {
+  (window as any).useRoomStore = useRoomStore;
+}

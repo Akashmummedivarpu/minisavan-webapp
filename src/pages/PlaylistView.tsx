@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, ListMusic, MoreVertical, X } from 'lucide-react';
+import { Play, ListMusic, MoreVertical, X, Edit2, Trash2 } from 'lucide-react';
 import { authenticatedFetch } from '../api';
 import { useRoomStore } from '../store';
 import { GenericSkeleton, SongRowSkeleton } from '../components/SkeletonLoader';
+import EditPlaylistModal from '../components/EditPlaylistModal';
 
 interface Song {
   _id: string;
@@ -28,12 +29,24 @@ export default function PlaylistView() {
   const navigate = useNavigate();
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showOptions, setShowOptions] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const optionsRef = useRef<HTMLDivElement>(null);
+  
   const setQueue = useRoomStore(state => state.setQueue);
 
   useEffect(() => {
     if (playlistId) {
       fetchPlaylist();
     }
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      if (optionsRef.current && !optionsRef.current.contains(e.target as Node)) {
+        setShowOptions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [playlistId]);
 
   const fetchPlaylist = async () => {
@@ -57,6 +70,34 @@ export default function PlaylistView() {
       image: t.image
     }));
     setQueue(mappedQueue, index);
+  };
+
+  const handleRemoveTrack = async (e: React.MouseEvent, internalMongoId: string) => {
+    e.stopPropagation();
+    try {
+      const res = await authenticatedFetch(`/playlists/${playlistId}/remove`, {
+        method: 'POST',
+        body: JSON.stringify({ songId: internalMongoId })
+      });
+      // The backend returns the updated playlist, but it might not have populated tracks depending on the route.
+      // So let's re-fetch the full playlist to get the updated populated tracks
+      fetchPlaylist();
+    } catch (err) {
+      console.error("Failed to remove track", err);
+    }
+  };
+
+  const handleDeletePlaylist = async () => {
+    if (window.confirm("Are you sure you want to delete this playlist? This action cannot be undone.")) {
+      try {
+        await authenticatedFetch(`/playlists/${playlistId}`, {
+          method: 'DELETE'
+        });
+        navigate('/library');
+      } catch (err) {
+        console.error("Failed to delete playlist", err);
+      }
+    }
   };
 
   if (loading) {
@@ -94,7 +135,7 @@ export default function PlaylistView() {
   }
 
   return (
-    <div className="pb-24">
+    <div className="pb-24 animate-in fade-in duration-500">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row gap-8 px-6 md:px-10 mb-10 items-end">
         <div className="relative w-48 h-48 md:w-60 md:h-60 rounded-2xl overflow-hidden shadow-2xl shrink-0 group">
@@ -139,9 +180,32 @@ export default function PlaylistView() {
         >
           <Play size={24} fill="currentColor" className="ml-1" />
         </button>
-        <button className="text-secondary hover:text-white transition-colors">
-          <MoreVertical size={24} />
-        </button>
+        
+        <div className="relative" ref={optionsRef}>
+          <button 
+            onClick={() => setShowOptions(!showOptions)}
+            className="text-secondary hover:text-white transition-colors p-2"
+          >
+            <MoreVertical size={24} />
+          </button>
+
+          {showOptions && (
+            <div className="absolute top-full left-0 mt-2 w-48 bg-[#1f1f1f] border border-glassBorder rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+              <button 
+                onClick={() => { setShowOptions(false); setShowEditModal(true); }}
+                className="w-full text-left px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+              >
+                <Edit2 size={16} /> Edit Details
+              </button>
+              <button 
+                onClick={() => { setShowOptions(false); handleDeletePlaylist(); }}
+                className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-white/10 transition-colors flex items-center gap-3 border-t border-white/5"
+              >
+                <Trash2 size={16} /> Delete Playlist
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tracklist */}
@@ -191,8 +255,12 @@ export default function PlaylistView() {
                 {song.source === 'saavn' ? 'JioSaavn' : song.source === 'gaana' ? 'Gaana' : song.source === 'soundcloud' ? 'SoundCloud' : 'YouTube'}
               </div>
 
-              <div className="text-right pr-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button className="text-secondary hover:text-white transition-colors" title="Remove from playlist (Coming Soon)">
+              <div className="text-right pr-4 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={(e) => handleRemoveTrack(e, song._id)}
+                  className="text-secondary hover:text-white transition-colors" 
+                  title="Remove from playlist"
+                >
                   <X size={16} />
                 </button>
               </div>
@@ -200,6 +268,15 @@ export default function PlaylistView() {
           ))
         )}
       </div>
+
+      <EditPlaylistModal 
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        initialName={playlist.name}
+        initialDescription={playlist.description}
+        playlistId={playlist._id}
+        onPlaylistUpdated={(updatedData) => setPlaylist(updatedData)}
+      />
     </div>
   );
 }

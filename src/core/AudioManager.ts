@@ -83,6 +83,8 @@ class AudioManager {
     };
   }
 
+  private playPromise: Promise<void> | null = null;
+
   public async play(url?: string, metadata?: MediaMetadataInit) {
     try {
       if (url && this.audio.src !== url) {
@@ -92,15 +94,28 @@ class AudioManager {
       }
       
       this.updateMediaSession(metadata);
-      await this.audio.play();
-    } catch (e) {
-      console.error("Failed to play audio:", e);
-      this.updateState({ hasError: true, isLoading: false });
+      this.playPromise = this.audio.play();
+      await this.playPromise;
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.error("Failed to play audio:", e);
+        this.updateState({ hasError: true, isLoading: false });
+      }
+    } finally {
+      this.playPromise = null;
     }
   }
 
   public pause() {
-    this.audio.pause();
+    if (this.playPromise) {
+      this.playPromise.then(() => {
+        this.audio.pause();
+      }).catch(() => {
+        // Ignored, playPromise already caught the AbortError
+      });
+    } else {
+      this.audio.pause();
+    }
   }
 
   public togglePlay() {

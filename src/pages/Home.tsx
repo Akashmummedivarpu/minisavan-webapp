@@ -20,7 +20,6 @@ export default function Home() {
 
   const handleTogglePlay = () => {
     storeTogglePlay();
-    audioTogglePlay();
   };
   const [recommendations, setRecommendations] = useState<Song[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
