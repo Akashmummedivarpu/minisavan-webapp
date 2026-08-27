@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import UserProfileDropdown from '../components/UserProfileDropdown';
 import { SongCardSkeleton } from '../components/SkeletonLoader';
 import { authenticatedFetch } from '../api';
-import { useAudioPlayer } from '../hooks/useAudioPlayer';
+
 
 interface Song {
   id: string;
@@ -61,7 +61,7 @@ export default function Home() {
         setLoadingRecs(true);
         try {
           // The backend expects artist and optionally title
-          const response = await fetch(`http://localhost:3001/api/recommendations?artist=${encodeURIComponent(currentSong.artist)}&title=${encodeURIComponent(currentSong.title || '')}`);
+          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/recommendations?artist=${encodeURIComponent(currentSong.artist)}&title=${encodeURIComponent(currentSong.title || '')}`);
           if (response.ok) {
             const data = await response.json();
             // Data might be an array of songs

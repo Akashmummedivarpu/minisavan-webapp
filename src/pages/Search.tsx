@@ -32,7 +32,7 @@ export default function Search() {
     const delayDebounceFn = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`http://localhost:3001/api/search?query=${encodeURIComponent(query)}`);
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/search?query=${encodeURIComponent(query)}`);
         const data = await res.json();
         if (Array.isArray(data)) setResults(data);
       } catch (error) {

@@ -34,7 +34,7 @@ export default function Rooms() {
 
   const fetchRooms = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/rooms');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/rooms`);
       if (res.ok) {
         const data = await res.json();
         setRooms(data);

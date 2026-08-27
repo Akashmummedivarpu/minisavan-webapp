@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { Play, Heart } from 'lucide-react';
 import { authenticatedFetch } from '../api';
 import { useRoomStore } from '../store';
