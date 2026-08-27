@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ListMusic, Heart, Clock } from 'lucide-react';
+import { Plus, ListMusic, Heart, Clock, Play } from 'lucide-react';
 import { authenticatedFetch } from '../api';
 import { useRoomStore } from '../store';
 import AuthModal from '../components/AuthModal';
