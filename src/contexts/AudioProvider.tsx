@@ -25,7 +25,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   // Connect to Zustand store for queue/playlist management
-  const { queue, currentIndex, playNext, playPrevious, playSong } = useRoomStore();
+  const { playNext, playPrevious } = useRoomStore();
 
   useEffect(() => {
     const handleTrackEnd = () => {

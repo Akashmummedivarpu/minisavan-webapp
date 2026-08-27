@@ -61,7 +61,7 @@ export default function PlaylistView() {
     }
   };
 
-  const handlePlaySong = (song: any, index: number = 0) => {
+  const handlePlaySong = (_song: any, index: number = 0) => {
     if (!playlist) return;
     const mappedQueue = playlist.tracks.map((t: any) => ({
       id: t.songId,
@@ -75,7 +75,7 @@ export default function PlaylistView() {
   const handleRemoveTrack = async (e: React.MouseEvent, internalMongoId: string) => {
     e.stopPropagation();
     try {
-      const res = await authenticatedFetch(`/playlists/${playlistId}/remove`, {
+      await authenticatedFetch(`/playlists/${playlistId}/remove`, {
         method: 'POST',
         body: JSON.stringify({ songId: internalMongoId })
       });

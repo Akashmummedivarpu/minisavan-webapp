@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Heart, X } from 'lucide-react';
+import { Play, Heart } from 'lucide-react';
 import { authenticatedFetch } from '../api';
 import { useRoomStore } from '../store';
 import { GenericSkeleton, SongRowSkeleton } from '../components/SkeletonLoader';
@@ -16,7 +16,7 @@ interface Song {
 }
 
 export default function LikedSongsView() {
-  const navigate = useNavigate();
+  // navigate unused
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const setQueue = useRoomStore(state => state.setQueue);
@@ -37,7 +37,7 @@ export default function LikedSongsView() {
     }
   };
 
-  const handlePlaySong = (song: any, index: number = 0) => {
+  const handlePlaySong = (_song: any, index: number = 0) => {
     const mappedQueue = songs.map((t: any) => ({
       id: t.songId,
       title: t.title,

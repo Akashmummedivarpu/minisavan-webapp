@@ -16,7 +16,7 @@ interface Song {
 
 export default function Home() {
   const { currentSong, isPlaying, user, togglePlay: storeTogglePlay, setQueue } = useRoomStore();
-  const { togglePlay: audioTogglePlay } = useAudioPlayer();
+  // Unused hook removed to fix TS build error
 
   const handleTogglePlay = () => {
     storeTogglePlay();
