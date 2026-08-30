@@ -23,7 +23,7 @@ function App() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen relative">
       {/* Floating Glass Dock (Mobile Bottom / Tablet Vertical Pill / Desktop Full Sidebar) */}
-      <nav className="fixed md:top-0 md:bottom-auto bottom-8 left-0 w-full md:w-20 lg:w-60 md:h-screen flex justify-center md:items-center lg:items-start lg:bg-black/40 lg:backdrop-blur-[40px] lg:border-r lg:border-glassBorder z-50 pointer-events-none md:pointer-events-auto">
+      <nav className="fixed md:top-0 md:bottom-auto bottom-0 left-0 w-full md:w-20 lg:w-60 md:h-screen flex justify-center md:items-center lg:items-start lg:bg-black/40 lg:backdrop-blur-[40px] lg:border-r lg:border-glassBorder z-[60] pointer-events-none md:pointer-events-auto">
         <div className="pointer-events-auto flex md:flex-col items-center lg:items-start justify-between md:justify-center w-[calc(100%-48px)] md:w-[60px] lg:w-full max-w-[342px] md:max-w-none md:h-auto lg:h-full glass-dock lg:bg-transparent lg:border-none lg:shadow-none lg:rounded-none rounded-full md:rounded-[100px] px-6 py-3 md:py-8 lg:p-10 gap-0 md:gap-8 lg:gap-4">
           <NavItem to="/" icon={<HomeIcon size={22} />} label="Home" />
           <NavItem to="/search" icon={<SearchIcon size={22} />} label="Search" />
@@ -38,7 +38,7 @@ function App() {
         style={{ backgroundImage: getAmbientBg() }}
       ></div>
 
-      <div className="relative z-10 w-full max-w-[500px] md:max-w-[900px] lg:max-w-[1200px] mx-auto pt-[50px] pb-[120px] md:py-[60px] md:ml-20 lg:ml-60">
+      <div className="relative z-10 w-full max-w-[500px] md:max-w-[900px] lg:max-w-[1200px] mx-auto pt-[50px] pb-[200px] md:py-[60px] md:ml-20 lg:ml-60">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/search" element={<Search />} />

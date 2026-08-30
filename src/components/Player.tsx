@@ -16,19 +16,23 @@ const formatTime = (timeInSeconds: number) => {
 };
 
 export default function Player() {
-  const { currentSong, roomId, listeners, togglePlay: storeTogglePlay, isPlaying: storeIsPlaying, roomRole } = useRoomStore();
+  const { currentSong, roomId, listeners, togglePlay: storeTogglePlay, isPlaying: storeIsPlaying, roomRole, stateTimestamp, currentTime: storeCurrentTime } = useRoomStore();
   const { 
     isPlaying: audioIsPlaying, 
     currentTime: localProgress, 
     duration, 
+    volume,
     play,
     pause, 
-    seek, 
+    seek,
+    setVolume,
     playNext,
     playPrevious
   } = useAudioPlayer();
   
   const progressRef = useRef<HTMLDivElement>(null);
+  const volumeRef = useRef<HTMLDivElement>(null);
+  const [prevVolume, setPrevVolume] = useState(1);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -111,6 +115,31 @@ export default function Player() {
     }
   }, [storeIsPlaying, audioIsPlaying, streamUrl, play, pause]);
 
+  // Sync local audio position with server's authoritative time
+  // When in a room, if the server says "play from X seconds" and our local
+  // audio is more than 2 seconds off, forcefully seek to match.
+  useEffect(() => {
+    if (!roomId || !streamUrl || !stateTimestamp || !duration) return;
+
+    // Calculate where the audio SHOULD be right now
+    let targetTime = storeCurrentTime;
+    if (storeIsPlaying && stateTimestamp > 0) {
+      // The server said "position was X at timestamp T"
+      // Time has passed since then, so the real position is X + elapsed
+      const elapsedSinceUpdate = (Date.now() - stateTimestamp) / 1000;
+      targetTime = storeCurrentTime + elapsedSinceUpdate;
+    }
+
+    // Clamp to duration
+    targetTime = Math.min(targetTime, duration);
+
+    // Only seek if drift exceeds 2 seconds
+    const drift = Math.abs(localProgress - targetTime);
+    if (drift > 2) {
+      seek(targetTime);
+    }
+  }, [roomId, stateTimestamp, storeCurrentTime, storeIsPlaying, duration, localProgress, streamUrl, seek]);
+
   const handleProgressClick = (e: MouseEvent<HTMLDivElement>) => {
     if (!progressRef.current || !duration) return;
     const rect = progressRef.current.getBoundingClientRect();
@@ -162,7 +191,7 @@ export default function Player() {
   const controlDisabledClass = isListener ? 'opacity-40 cursor-not-allowed pointer-events-none' : '';
 
   return (
-    <div className="fixed bottom-0 left-0 w-full md:pl-20 lg:pl-60 z-[100]">
+    <div className="fixed bottom-[60px] md:bottom-0 left-0 w-full md:pl-20 lg:pl-60 z-50">
       <div className="bg-[#111111]/90 backdrop-blur-xl border-t border-glassBorder px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 md:gap-0">
         
         {/* Track Info */}
@@ -245,9 +274,32 @@ export default function Player() {
               Sync: {listeners} listening
             </div>
           )}
-          <Volume2 size={18} className="text-secondary" />
-          <div className="w-24 h-1 bg-white/10 rounded-full cursor-pointer">
-             <div className="h-full bg-secondary rounded-full w-2/3"></div>
+          <button 
+            onClick={() => {
+              if (volume > 0) {
+                setPrevVolume(volume);
+                setVolume(0);
+              } else {
+                setVolume(prevVolume || 0.66);
+              }
+            }}
+            className="text-secondary hover:text-white transition-colors cursor-pointer"
+            title={volume > 0 ? 'Mute' : 'Unmute'}
+          >
+            <Volume2 size={18} />
+          </button>
+          <div 
+            ref={volumeRef}
+            className="w-24 h-1 bg-white/10 rounded-full cursor-pointer group hover:h-2 transition-all"
+            onClick={(e) => {
+              if (!volumeRef.current) return;
+              const rect = volumeRef.current.getBoundingClientRect();
+              const clickX = e.clientX - rect.left;
+              const newVol = Math.max(0, Math.min(1, clickX / rect.width));
+              setVolume(newVol);
+            }}
+          >
+             <div className="h-full bg-white rounded-full group-hover:bg-accent transition-colors" style={{ width: `${volume * 100}%` }}></div>
           </div>
         </div>
 

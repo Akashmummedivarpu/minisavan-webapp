@@ -31,6 +31,8 @@ interface RoomState {
   currentSong: any | null;
   listeners: number;
   messages: ChatMessage[];
+  stateTimestamp: number; // server timestamp when state was set
+  serverTime: number; // server's Date.now() at join time
   
   // Queue & Playlist State
   queue: any[];
@@ -59,6 +61,8 @@ export const useRoomStore = create<RoomState>()(
             isPlaying: data.playbackState.status === 'PLAYING', 
             currentTime: data.playbackState.positionMs / 1000, 
             currentSong: data.playbackState.currentSong,
+            stateTimestamp: data.playbackState.stateTimestamp || Date.now(),
+            serverTime: data.serverTime || Date.now(),
             // Use real-time count from server if provided
             listeners: data.listenerCount ?? get().listeners,
             // Capture the user's role in this room
@@ -71,7 +75,8 @@ export const useRoomStore = create<RoomState>()(
         set({ 
           isPlaying: data.status === 'PLAYING', 
           currentTime: data.positionMs / 1000, 
-          currentSong: data.currentSong 
+          currentSong: data.currentSong,
+          stateTimestamp: data.stateTimestamp || Date.now()
         });
       });
 
@@ -79,7 +84,8 @@ export const useRoomStore = create<RoomState>()(
         set({ 
           isPlaying: data.status === 'PLAYING', 
           currentTime: data.positionMs / 1000, 
-          currentSong: data.currentSong 
+          currentSong: data.currentSong,
+          stateTimestamp: data.stateTimestamp || Date.now()
         });
       });
 
@@ -120,6 +126,8 @@ export const useRoomStore = create<RoomState>()(
         currentSong: null,
         listeners: 1,
         messages: [],
+        stateTimestamp: 0,
+        serverTime: 0,
         queue: [],
         currentIndex: -1,
         
