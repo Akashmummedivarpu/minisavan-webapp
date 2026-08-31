@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Play, Heart } from 'lucide-react';
 import { authenticatedFetch } from '../api';
 import { useRoomStore } from '../store';
+import { logger } from '../core/logger';
 import { GenericSkeleton, SongRowSkeleton } from '../components/SkeletonLoader';
 
 interface Song {
@@ -31,7 +32,7 @@ export default function LikedSongsView() {
       const res = await authenticatedFetch(`/user/liked`);
       setSongs(res);
     } catch (err) {
-      console.error("Failed to fetch liked songs", err);
+      logger.error("Failed to fetch liked songs", err);
     } finally {
       setLoading(false);
     }
@@ -58,7 +59,7 @@ export default function LikedSongsView() {
         setSongs(prev => prev.filter(s => s.songId !== songId && s._id !== songId));
       }
     } catch (err) {
-      console.error("Failed to unlike song", err);
+      logger.error("Failed to unlike song", err);
     }
   };
 

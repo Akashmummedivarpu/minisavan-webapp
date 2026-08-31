@@ -4,6 +4,7 @@ import { useRoomStore } from '../store';
 import AuthModal from './AuthModal';
 import { authenticatedFetch } from '../api';
 import toast from 'react-hot-toast';
+import { logger } from '../core/logger';
 
 export default function UserProfileDropdown() {
   const { user, token, setAuth, logout } = useRoomStore();
@@ -63,7 +64,7 @@ export default function UserProfileDropdown() {
       setShowDropdown(false);
       toast.success('Profile updated!');
     } catch (error) {
-      console.error("Failed to update profile", error);
+      logger.error("Failed to update profile", error);
       toast.error('Failed to update profile. Please try again.');
     } finally {
       setIsSaving(false);

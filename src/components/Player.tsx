@@ -7,6 +7,7 @@ import AddToPlaylistModal from './AddToPlaylistModal';
 import AuthModal from './AuthModal';
 import { authenticatedFetch } from '../api';
 import toast from 'react-hot-toast';
+import { logger } from '../core/logger';
 
 // Helper to format seconds into M:SS
 const formatTime = (timeInSeconds: number) => {
@@ -67,7 +68,7 @@ export default function Player() {
             setStreamUrl(data.streamUrl);
           }
         } catch (error) {
-          console.error("Failed to fetch stream URL", error);
+          logger.error("Failed to fetch stream URL", error);
           // Only show toast if this is still the current song
           if (streamSongIdRef.current === resolvedId) {
             toast.error('Failed to load song. Try another one.');
@@ -87,7 +88,7 @@ export default function Player() {
             body: JSON.stringify({ songId: resolvedId })
           });
         } catch (err) {
-          console.error("Failed to record history", err);
+          logger.error("Failed to record history", err);
         }
       };
 
@@ -98,7 +99,7 @@ export default function Player() {
           const liked = likedSongs.some((s: any) => s.songId === resolvedId);
           setIsLiked(liked);
         } catch (err) {
-          console.error("Failed to fetch liked status", err);
+          logger.error("Failed to fetch liked status", err);
         }
       };
 
@@ -213,7 +214,7 @@ export default function Player() {
       });
       setIsLiked(res.liked);
     } catch (err) {
-      console.error("Failed to toggle like", err);
+      logger.error("Failed to toggle like", err);
       setIsLiked(!isLiked); // Revert
     }
   };

@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import UserProfileDropdown from '../components/UserProfileDropdown';
 import { SongCardSkeleton } from '../components/SkeletonLoader';
 import { authenticatedFetch } from '../api';
-
+import { logger } from '../core/logger';
 
 interface Song {
   id: string;
@@ -44,7 +44,7 @@ export default function Home() {
           const unique = Array.from(new Map(mapped.map((item: any) => [item.id, item])).values()) as Song[];
           setRecentSongs(unique.slice(0, 10));
         } catch (error) {
-          console.error('Failed to fetch history', error);
+          logger.error('Failed to fetch history', error);
         } finally {
           setLoadingRecent(false);
         }
@@ -71,7 +71,7 @@ export default function Home() {
             }
           }
         } catch (error) {
-          console.error("Failed to fetch recommendations", error);
+          logger.error("Failed to fetch recommendations", error);
         } finally {
           setLoadingRecs(false);
         }

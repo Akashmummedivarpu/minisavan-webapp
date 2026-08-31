@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Radio, Users, Plus } from 'lucide-react';
 import { useRoomStore } from '../store';
+import { logger } from '../core/logger';
 import AuthModal from '../components/AuthModal';
 import CreateRoomModal from '../components/CreateRoomModal';
 import UserProfileDropdown from '../components/UserProfileDropdown';
@@ -40,7 +41,7 @@ export default function Rooms() {
         setRooms(data);
       }
     } catch (err) {
-      console.error("Failed to fetch rooms", err);
+      logger.error("Failed to fetch rooms", err);
     } finally {
       setLoading(false);
     }

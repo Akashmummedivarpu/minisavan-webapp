@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, ListMusic, Heart, Clock, Play } from 'lucide-react';
 import { authenticatedFetch } from '../api';
+import { logger } from '../core/logger';
 import { useRoomStore } from '../store';
 import AuthModal from '../components/AuthModal';
 import CreatePlaylistModal from '../components/CreatePlaylistModal';
@@ -48,7 +49,7 @@ export default function Library() {
       setLikedCount(likedRes.length);
       setHistory(historyRes);
     } catch (err) {
-      console.error("Failed to fetch library data", err);
+      logger.error("Failed to fetch library data", err);
     } finally {
       setLoading(false);
     }

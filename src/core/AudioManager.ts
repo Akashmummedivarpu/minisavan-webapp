@@ -1,3 +1,4 @@
+import { logger } from './logger';
 
 export type AudioState = {
   isPlaying: boolean;
@@ -53,7 +54,7 @@ class AudioManager {
     this.audio.addEventListener('playing', () => this.updateState({ isLoading: false }));
     this.audio.addEventListener('canplay', () => this.updateState({ isLoading: false }));
     this.audio.addEventListener('error', (e) => {
-      console.error("Audio playback error:", e);
+      logger.error("Audio playback error:", e);
       this.updateState({ hasError: true, isLoading: false, isPlaying: false });
     });
     
@@ -98,7 +99,7 @@ class AudioManager {
       await this.playPromise;
     } catch (e: any) {
       if (e.name !== 'AbortError') {
-        console.error("Failed to play audio:", e);
+        logger.error("Failed to play audio:", e);
         this.updateState({ hasError: true, isLoading: false });
       }
     } finally {

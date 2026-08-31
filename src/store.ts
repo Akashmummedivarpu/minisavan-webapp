@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { socket } from './socket';
+import { logger } from './core/logger';
 
 interface User {
   id: string;
@@ -140,7 +141,7 @@ export const useRoomStore = create<RoomState>()(
             if (res.success) {
               set({ roomId });
             } else {
-              console.error("Failed to join room", res.error);
+              logger.error("Failed to join room", res.error);
             }
           });
         },

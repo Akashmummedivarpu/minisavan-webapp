@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Loader2, ListMusic, Plus } from 'lucide-react';
 import { authenticatedFetch } from '../api';
 import { GenericSkeleton } from './SkeletonLoader';
+import { logger } from '../core/logger';
 
 interface Playlist {
   _id: string;
@@ -32,7 +33,7 @@ export default function AddToPlaylistModal({ isOpen, onClose, song }: AddToPlayl
       const res = await authenticatedFetch('/playlists');
       setPlaylists(res);
     } catch (err) {
-      console.error("Failed to fetch playlists", err);
+      logger.error("Failed to fetch playlists", err);
     } finally {
       setLoading(false);
     }
@@ -49,7 +50,7 @@ export default function AddToPlaylistModal({ isOpen, onClose, song }: AddToPlayl
       // Optionally show a success toast here
       onClose();
     } catch (err) {
-      console.error("Failed to add to playlist", err);
+      logger.error("Failed to add to playlist", err);
     } finally {
       setAddingTo(null);
     }

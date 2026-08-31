@@ -5,6 +5,7 @@ import AddToPlaylistModal from '../components/AddToPlaylistModal';
 import AuthModal from '../components/AuthModal';
 import { SongRowSkeleton } from '../components/SkeletonLoader';
 import UserProfileDropdown from '../components/UserProfileDropdown';
+import { logger } from '../core/logger';
 
 interface Song {
   id: string;
@@ -36,7 +37,7 @@ export default function Search() {
         const data = await res.json();
         if (Array.isArray(data)) setResults(data);
       } catch (error) {
-        console.error("Search failed:", error);
+        logger.error("Search failed:", error);
       } finally {
         setLoading(false);
       }

@@ -5,6 +5,7 @@ import { authenticatedFetch } from '../api';
 import { useRoomStore } from '../store';
 import { GenericSkeleton, SongRowSkeleton } from '../components/SkeletonLoader';
 import EditPlaylistModal from '../components/EditPlaylistModal';
+import { logger } from '../core/logger';
 
 interface Song {
   _id: string;
@@ -55,7 +56,7 @@ export default function PlaylistView() {
       const res = await authenticatedFetch(`/playlists/${playlistId}`);
       setPlaylist(res);
     } catch (err) {
-      console.error("Failed to fetch playlist", err);
+      logger.error("Failed to fetch playlist", err);
     } finally {
       setLoading(false);
     }
@@ -83,7 +84,7 @@ export default function PlaylistView() {
       // So let's re-fetch the full playlist to get the updated populated tracks
       fetchPlaylist();
     } catch (err) {
-      console.error("Failed to remove track", err);
+      logger.error("Failed to remove track", err);
     }
   };
 
@@ -95,7 +96,7 @@ export default function PlaylistView() {
         });
         navigate('/library');
       } catch (err) {
-        console.error("Failed to delete playlist", err);
+        logger.error("Failed to delete playlist", err);
       }
     }
   };
