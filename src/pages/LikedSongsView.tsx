@@ -120,11 +120,11 @@ export default function LikedSongsView() {
       {/* Tracklist */}
       <div className="px-6 md:px-10 flex flex-col">
         {/* Table Header */}
-        <div className="grid grid-cols-[40px_minmax(0,1fr)_100px] md:grid-cols-[40px_minmax(0,1fr)_minmax(0,1fr)_100px] gap-4 p-3 border-b border-white/10 text-xs font-medium text-secondary uppercase tracking-wider mb-3">
-          <div className="text-center">#</div>
+        <div className="grid grid-cols-[20px_minmax(0,1fr)_40px] md:grid-cols-[40px_minmax(0,1fr)_minmax(0,1fr)_100px] gap-2 md:gap-4 p-2 md:p-3 border-b border-white/10 text-xs font-medium text-secondary uppercase tracking-wider mb-3">
+          <div className="text-center hidden md:block">#</div>
           <div>Title</div>
           <div className="hidden md:block">Album / Source</div>
-          <div className="text-right pr-4">Options</div>
+          <div className="text-right pr-2 md:pr-4"></div>
         </div>
 
         {/* Tracks */}
@@ -139,35 +139,35 @@ export default function LikedSongsView() {
             <div 
               key={song._id}
               onClick={() => handlePlaySong(song, index)}
-              className="grid grid-cols-[40px_minmax(0,1fr)_100px] md:grid-cols-[40px_minmax(0,1fr)_minmax(0,1fr)_100px] gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group items-center"
+              className="grid grid-cols-[20px_minmax(0,1fr)_40px] md:grid-cols-[40px_minmax(0,1fr)_minmax(0,1fr)_100px] gap-2 md:gap-4 p-2 md:p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group items-center"
             >
-              <div className="text-center text-secondary font-medium group-hover:hidden">
+              <div className="text-center text-secondary font-medium md:group-hover:hidden hidden md:block">
                 {index + 1}
               </div>
-              <div className="text-center text-white hidden group-hover:flex items-center justify-center">
+              <div className="text-center text-white md:hidden md:group-hover:flex items-center justify-center">
                 <Play size={14} fill="currentColor" />
               </div>
               
-              <div className="flex items-center gap-3 overflow-hidden">
+              <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
                 <img 
                   src={song.image || 'https://via.placeholder.com/150'} 
                   alt={song.title} 
-                  className="w-10 h-10 rounded-md object-cover"
+                  className="w-10 h-10 md:w-10 md:h-10 rounded-md object-cover flex-shrink-0"
                 />
-                <div className="flex flex-col overflow-hidden">
-                  <span className="font-bold text-sm text-white line-clamp-1">{song.title}</span>
-                  <span className="text-xs text-secondary line-clamp-1">{song.artist || song.subtitle}</span>
+                <div className="flex flex-col overflow-hidden min-w-0">
+                  <span className="font-bold text-[13px] md:text-sm text-white truncate">{song.title}</span>
+                  <span className="text-[11px] md:text-xs text-secondary truncate">{song.artist || song.subtitle}</span>
                 </div>
               </div>
 
-              <div className="hidden md:flex items-center text-sm text-secondary line-clamp-1">
+              <div className="hidden md:flex items-center text-sm text-secondary truncate">
                 {song.source === 'saavn' ? 'JioSaavn' : song.source === 'gaana' ? 'Gaana' : song.source === 'soundcloud' ? 'SoundCloud' : 'YouTube'}
               </div>
 
-              <div className="text-right pr-4 flex justify-end">
+              <div className="text-right pr-2 md:pr-4 flex justify-end">
                 <button 
                   onClick={(e) => handleUnlike(e, song.songId)}
-                  className="text-accent hover:text-white transition-colors" 
+                  className="text-accent hover:text-white transition-colors p-2 md:p-0" 
                   title="Remove from Liked Songs"
                 >
                   <Heart size={16} fill="currentColor" />

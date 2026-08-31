@@ -111,7 +111,7 @@ export default function Search() {
                   >
                     <Plus size={18} />
                   </button>
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 md:opacity-0 opacity-100 md:group-hover:opacity-100 transition-opacity">
                     <Play size={16} fill="currentColor" className="ml-1" />
                   </div>
                 </div>
