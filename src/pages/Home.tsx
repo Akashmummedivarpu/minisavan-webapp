@@ -33,7 +33,8 @@ export default function Home() {
         try {
           const data = await authenticatedFetch('/user/history');
           const mapped = data.map((s: any) => ({
-            id: s.songId,
+            id: s.songId || s._id,
+            songId: s.songId,
             title: s.title,
             artist: s.artist,
             image: s.image,

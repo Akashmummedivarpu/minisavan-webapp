@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import type { MouseEvent } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Plus, Heart } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Plus, Heart, Loader2 } from 'lucide-react';
 import { useRoomStore } from '../store';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import AddToPlaylistModal from './AddToPlaylistModal';
 import AuthModal from './AuthModal';
 import { authenticatedFetch } from '../api';
+import toast from 'react-hot-toast';
 
 // Helper to format seconds into M:SS
 const formatTime = (timeInSeconds: number) => {
@@ -34,10 +35,13 @@ export default function Player() {
   const volumeRef = useRef<HTMLDivElement>(null);
   const [prevVolume, setPrevVolume] = useState(1);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [isLoadingStream, setIsLoadingStream] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const { user } = useRoomStore();
+  // Track which song the current streamUrl belongs to, to prevent stale playback
+  const streamSongIdRef = useRef<string | null>(null);
 
   // Fetch the actual audio stream URL when a new song is selected
   // and log it to history
@@ -45,6 +49,11 @@ export default function Player() {
     // Priority: songId (Saavn/platform ID from DB) > id > _id (MongoDB ObjectId - won't work with music API)
     const resolvedId = currentSong?.songId || currentSong?.id;
     if (resolvedId) {
+      // CRITICAL: Clear old stream URL immediately so we don't play stale audio
+      setStreamUrl(null);
+      setIsLoadingStream(true);
+      streamSongIdRef.current = resolvedId;
+
       const fetchStreamUrl = async () => {
         try {
           const params = new URLSearchParams({
@@ -53,11 +62,20 @@ export default function Player() {
             image: currentSong.image || ''
           });
           const data = await authenticatedFetch(`/song/${resolvedId}?${params}`);
-          if (data.streamUrl) {
+          // Only set if this is still the current song (prevent race condition)
+          if (streamSongIdRef.current === resolvedId && data.streamUrl) {
             setStreamUrl(data.streamUrl);
           }
         } catch (error) {
           console.error("Failed to fetch stream URL", error);
+          // Only show toast if this is still the current song
+          if (streamSongIdRef.current === resolvedId) {
+            toast.error('Failed to load song. Try another one.');
+          }
+        } finally {
+          if (streamSongIdRef.current === resolvedId) {
+            setIsLoadingStream(false);
+          }
         }
       };
       
@@ -115,30 +133,46 @@ export default function Player() {
     }
   }, [storeIsPlaying, audioIsPlaying, streamUrl, play, pause]);
 
-  // Sync local audio position with server's authoritative time
-  // When in a room, if the server says "play from X seconds" and our local
-  // audio is more than 2 seconds off, forcefully seek to match.
-  useEffect(() => {
-    if (!roomId || !streamUrl || !stateTimestamp || !duration) return;
-
-    // Calculate where the audio SHOULD be right now
+  // Calculate the server's authoritative target time
+  const getServerTargetTime = useCallback(() => {
+    if (!stateTimestamp || !duration) return null;
     let targetTime = storeCurrentTime;
     if (storeIsPlaying && stateTimestamp > 0) {
-      // The server said "position was X at timestamp T"
-      // Time has passed since then, so the real position is X + elapsed
       const elapsedSinceUpdate = (Date.now() - stateTimestamp) / 1000;
       targetTime = storeCurrentTime + elapsedSinceUpdate;
     }
+    return Math.min(targetTime, duration);
+  }, [stateTimestamp, storeCurrentTime, storeIsPlaying, duration]);
 
-    // Clamp to duration
-    targetTime = Math.min(targetTime, duration);
+  // Sync local audio position with server's authoritative time on state changes
+  useEffect(() => {
+    if (!roomId || !streamUrl || !stateTimestamp || !duration) return;
 
-    // Only seek if drift exceeds 2 seconds
+    const targetTime = getServerTargetTime();
+    if (targetTime === null) return;
+
+    // Seek if drift exceeds 1 second
     const drift = Math.abs(localProgress - targetTime);
-    if (drift > 2) {
+    if (drift > 1) {
       seek(targetTime);
     }
-  }, [roomId, stateTimestamp, storeCurrentTime, storeIsPlaying, duration, localProgress, streamUrl, seek]);
+  }, [roomId, stateTimestamp, storeCurrentTime, storeIsPlaying, duration, streamUrl, seek, getServerTargetTime]);
+
+  // Periodic sync check every 5 seconds to catch gradual drift
+  useEffect(() => {
+    if (!roomId || !streamUrl || !storeIsPlaying) return;
+
+    const interval = setInterval(() => {
+      const targetTime = getServerTargetTime();
+      if (targetTime === null) return;
+      const drift = Math.abs(localProgress - targetTime);
+      if (drift > 1) {
+        seek(targetTime);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [roomId, streamUrl, storeIsPlaying, getServerTargetTime, localProgress, seek]);
 
   const handleProgressClick = (e: MouseEvent<HTMLDivElement>) => {
     if (!progressRef.current || !duration) return;
@@ -233,10 +267,10 @@ export default function Player() {
             <button 
               onClick={handleTogglePlay}
               className={`w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_15px_rgba(255,255,255,0.2)] ${controlDisabledClass}`}
-              disabled={!!isListener}
+              disabled={!!isListener || isLoadingStream}
               title={isListener ? 'Only the host can control playback' : storeIsPlaying ? 'Pause' : 'Play'}
             >
-              {storeIsPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
+              {isLoadingStream ? <Loader2 size={20} className="animate-spin" /> : storeIsPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
             </button>
             <button onClick={playNext} className={`text-secondary hover:text-white transition-colors ${controlDisabledClass}`} disabled={!!isListener} title={isListener ? 'Only the host can control playback' : 'Next'}>
               <SkipForward size={20} fill="currentColor" />
