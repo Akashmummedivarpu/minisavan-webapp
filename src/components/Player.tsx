@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { MouseEvent } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Plus, Heart, Loader2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Plus, Heart, Loader2, RotateCcw } from 'lucide-react';
 import { useRoomStore } from '../store';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import AddToPlaylistModal from './AddToPlaylistModal';
@@ -48,6 +48,8 @@ export default function Player() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+  const [retryStreamCount, setRetryStreamCount] = useState(0);
+  const [streamError, setStreamError] = useState(false);
   const { user } = useRoomStore();
   // Track which song the current streamUrl belongs to, to prevent stale playback
   const streamSongIdRef = useRef<string | null>(null);
@@ -63,6 +65,7 @@ export default function Player() {
     if (resolvedId) {
       // CRITICAL: Clear old stream URL immediately so we don't play stale audio
       setStreamUrl(null);
+      setStreamError(false);
       setIsLoadingStream(true);
       streamSongIdRef.current = resolvedId;
 
@@ -77,17 +80,38 @@ export default function Player() {
             artist: currentSong.artist || currentSong.subtitle || '',
             image: currentSong.image || ''
           });
-          const data = await authenticatedFetch(`/song/${resolvedId}?${params}`, { signal });
+          // Race the fetch against a timeout so a slow external stream
+          // provider can never leave the player stuck in a loading state.
+          const data = await Promise.race([
+            authenticatedFetch(`/song/${resolvedId}?${params}`, { signal }),
+            new Promise<never>((_, reject) => {
+              const t = setTimeout(() => reject(new Error('STREAM_TIMEOUT')), 15000);
+              signal?.addEventListener('abort', () => {
+                clearTimeout(t);
+                reject(new DOMException('Aborted', 'AbortError'));
+              });
+            })
+          ]);
           // Only set if this is still the current song (prevent race condition)
           if (streamSongIdRef.current === resolvedId && data.streamUrl) {
             setStreamUrl(data.streamUrl);
           }
         } catch (error: any) {
-          if (error.name === 'AbortError') return; // Ignore cancelled requests
+          if (error?.name === 'AbortError') return; // Ignore cancelled requests
           logger.error("Failed to fetch stream URL", error);
-          // Only show toast if this is still the current song
+          // Only show error if this is still the current song
           if (streamSongIdRef.current === resolvedId) {
-            toast.error('Failed to load song. Try another one.');
+            setStreamError(true);
+            const isTimeout = error?.message === 'STREAM_TIMEOUT';
+            toast.error(
+              isTimeout
+                ? 'Song is taking too long to load. Try another one.'
+                : 'Failed to load song. Try another one.',
+              {
+                id: `stream-error-${resolvedId}`,
+                duration: 4000
+              }
+            );
           }
         } finally {
           if (streamSongIdRef.current === resolvedId) {
@@ -126,7 +150,8 @@ export default function Player() {
       // Cleanup: cancel in-flight request on unmount or song change
       return () => controller.abort();
     }
-  }, [currentSong?.songId, currentSong?.id, currentSong?.title, currentSong?.artist, currentSong?.subtitle, currentSong?.image, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSong?.songId, currentSong?.id, currentSong?.title, currentSong?.artist, currentSong?.subtitle, currentSong?.image, user, retryStreamCount]);
 
 
   // When streamUrl is ready, pass it to the global audio manager
@@ -245,6 +270,11 @@ export default function Player() {
     storeTogglePlay();
   };
 
+  const handleRetryStream = () => {
+    if (retryStreamCount === 0) setRetryStreamCount(1);
+    else setRetryStreamCount((c) => c + 1);
+  };
+
   const handleLikeClick = async () => {
     if (!user) {
       setShowAuthModal(true);
@@ -338,12 +368,12 @@ export default function Player() {
               <SkipBack size={18} fill="currentColor" className="md:w-[20px] md:h-[20px]" />
             </button>
             <button 
-              onClick={handleTogglePlay}
+              onClick={streamError ? handleRetryStream : handleTogglePlay}
               className={`w-9 h-9 md:w-10 md:h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_15px_rgba(255,255,255,0.2)] ${controlDisabledClass}`}
               disabled={!!isListener || isLoadingStream}
-              title={isListener ? 'Only the host can control playback' : storeIsPlaying ? 'Pause' : 'Play'}
+              title={isListener ? 'Only the host can control playback' : streamError ? 'Retry loading' : storeIsPlaying ? 'Pause' : 'Play'}
             >
-              {isLoadingStream ? <Loader2 size={18} className="animate-spin" /> : storeIsPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
+              {isLoadingStream ? <Loader2 size={18} className="animate-spin" /> : streamError ? <RotateCcw size={18} /> : storeIsPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
             </button>
             <button onClick={playNext} className={`text-secondary hover:text-white transition-colors ${controlDisabledClass}`} disabled={!!isListener} title={isListener ? 'Only the host can control playback' : 'Next'}>
               <SkipForward size={18} fill="currentColor" className="md:w-[20px] md:h-[20px]" />
