@@ -47,7 +47,11 @@ export default function Library() {
       ]);
       setPlaylists(playlistsRes);
       setLikedCount(likedRes.length);
-      setHistory(historyRes);
+      // Deduplicate history entries by song ID
+      const uniqueHistory = Array.from(
+        new Map(historyRes.map((song: any) => [song.songId || song._id, song])).values()
+      );
+      setHistory(uniqueHistory);
     } catch (err) {
       logger.error("Failed to fetch library data", err);
     } finally {

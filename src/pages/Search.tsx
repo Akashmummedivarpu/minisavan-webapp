@@ -5,6 +5,7 @@ import AddToPlaylistModal from '../components/AddToPlaylistModal';
 import AuthModal from '../components/AuthModal';
 import { SongRowSkeleton } from '../components/SkeletonLoader';
 import UserProfileDropdown from '../components/UserProfileDropdown';
+import { authenticatedFetch } from '../api';
 import { logger } from '../core/logger';
 
 interface Song {
@@ -30,20 +31,24 @@ export default function Search() {
       return;
     }
 
+    const controller = new AbortController();
     const delayDebounceFn = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/search?query=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        if (Array.isArray(data)) setResults(data);
-      } catch (error) {
+        const res = await authenticatedFetch(`/search?query=${encodeURIComponent(query)}`, { signal: controller.signal });
+        if (Array.isArray(res)) setResults(res);
+      } catch (error: any) {
+        if (error.name === 'AbortError') return;
         logger.error("Search failed:", error);
       } finally {
         setLoading(false);
       }
     }, 300);
 
-    return () => clearTimeout(delayDebounceFn);
+    return () => {
+      clearTimeout(delayDebounceFn);
+      controller.abort();
+    };
   }, [query]);
 
   const handleAddClick = (e: React.MouseEvent, song: Song) => {

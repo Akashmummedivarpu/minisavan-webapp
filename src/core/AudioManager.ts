@@ -5,6 +5,7 @@ export type AudioState = {
   currentTime: number;
   duration: number;
   volume: number;
+  playbackRate: number;
   isLoading: boolean;
   hasError: boolean;
 };
@@ -17,8 +18,8 @@ class AudioManager {
   private audio: HTMLAudioElement;
   private state: AudioState;
   
-  private onStateChange: StateChangeCallback | null = null;
-  private onTrackEnd: TrackEndCallback | null = null;
+  private stateSubscribers: StateChangeCallback[] = [];
+  private trackEndSubscribers: TrackEndCallback[] = [];
   
   private constructor() {
     this.audio = new Audio();
@@ -30,6 +31,7 @@ class AudioManager {
       currentTime: 0,
       duration: 0,
       volume: 1,
+      playbackRate: 1,
       isLoading: false,
       hasError: false
     };
@@ -50,6 +52,7 @@ class AudioManager {
     this.audio.addEventListener('timeupdate', () => this.updateState({ currentTime: this.audio.currentTime }));
     this.audio.addEventListener('durationchange', () => this.updateState({ duration: this.audio.duration }));
     this.audio.addEventListener('volumechange', () => this.updateState({ volume: this.audio.volume }));
+    this.audio.addEventListener('ratechange', () => this.updateState({ playbackRate: this.audio.playbackRate }));
     this.audio.addEventListener('waiting', () => this.updateState({ isLoading: true }));
     this.audio.addEventListener('playing', () => this.updateState({ isLoading: false }));
     this.audio.addEventListener('canplay', () => this.updateState({ isLoading: false }));
@@ -60,27 +63,25 @@ class AudioManager {
     
     this.audio.addEventListener('ended', () => {
       this.updateState({ isPlaying: false, currentTime: 0 });
-      if (this.onTrackEnd) this.onTrackEnd();
+      this.trackEndSubscribers.forEach((cb) => cb());
     });
   }
 
   private updateState(newState: Partial<AudioState>) {
     this.state = { ...this.state, ...newState };
-    if (this.onStateChange) {
-      this.onStateChange(this.state);
-    }
+    this.stateSubscribers.forEach((cb) => cb(this.state));
   }
 
   public subscribe(onStateChange: StateChangeCallback, onTrackEnd: TrackEndCallback) {
-    this.onStateChange = onStateChange;
-    this.onTrackEnd = onTrackEnd;
+    this.stateSubscribers.push(onStateChange);
+    this.trackEndSubscribers.push(onTrackEnd);
     
     // Fire initial state
     onStateChange(this.state);
     
     return () => {
-      this.onStateChange = null;
-      this.onTrackEnd = null;
+      this.stateSubscribers = this.stateSubscribers.filter((cb) => cb !== onStateChange);
+      this.trackEndSubscribers = this.trackEndSubscribers.filter((cb) => cb !== onTrackEnd);
     };
   }
 
@@ -134,6 +135,12 @@ class AudioManager {
 
   public setVolume(volume: number) {
     this.audio.volume = Math.max(0, Math.min(1, volume));
+  }
+
+  public setPlaybackRate(rate: number) {
+    const clamped = Math.max(0.5, Math.min(2, rate));
+    this.audio.playbackRate = clamped;
+    this.updateState({ playbackRate: clamped });
   }
 
   // --- Media Session API ---

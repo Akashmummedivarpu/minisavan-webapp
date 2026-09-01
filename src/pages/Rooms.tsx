@@ -17,7 +17,7 @@ interface Room {
 }
 
 export default function Rooms() {
-  const { joinRoom, roomId, user } = useRoomStore();
+  const { roomId, user } = useRoomStore();
   const navigate = useNavigate();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +56,7 @@ export default function Rooms() {
   };
 
   const handleRoomCreated = (newRoomId: string) => {
-    joinRoom(newRoomId);
+    // RoomDashboard handles the join on mount
     navigate(`/rooms/${newRoomId}`);
   };
 
@@ -112,7 +112,7 @@ export default function Rooms() {
                   if (!user) {
                     setShowAuthModal(true);
                   } else {
-                    joinRoom(room._id);
+                    // Just navigate — RoomDashboard handles the join
                     navigate(`/rooms/${room._id}`);
                   }
                 }}

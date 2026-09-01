@@ -44,6 +44,12 @@ export const authenticatedFetch = async (endpoint: string, options: RequestInit 
         errorMessage
       });
 
+      // Handle 401 (expired/invalid token) globally
+      if (response.status === 401) {
+        const { logout } = useRoomStore.getState();
+        if (logout) logout();
+      }
+
       // Throw a structured error that UI components can catch
       const err: any = new Error(errorMessage);
       err.status = response.status;

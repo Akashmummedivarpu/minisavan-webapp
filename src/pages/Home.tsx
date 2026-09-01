@@ -12,6 +12,7 @@ interface Song {
   title: string;
   image: string;
   artist: string;
+  subtitle?: string;
 }
 
 export default function Home() {
@@ -25,6 +26,42 @@ export default function Home() {
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [recentSongs, setRecentSongs] = useState<Song[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
+  const [activeRooms, setActiveRooms] = useState<any[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [trendingSongs, setTrendingSongs] = useState<Song[]>([]);
+  const [loadingTrending, setLoadingTrending] = useState(false);
+
+  // Fetch real active rooms
+  useEffect(() => {
+    const fetchRooms = async () => {
+      setLoadingRooms(true);
+      try {
+        const data = await authenticatedFetch('/rooms');
+        if (Array.isArray(data)) setActiveRooms(data);
+      } catch (error) {
+        logger.error('Failed to fetch active rooms', error);
+      } finally {
+        setLoadingRooms(false);
+      }
+    };
+    fetchRooms();
+  }, []);
+
+  // Fetch trending songs for discovery
+  useEffect(() => {
+    const fetchTrending = async () => {
+      setLoadingTrending(true);
+      try {
+        const data = await authenticatedFetch('/search?query=trending');
+        if (Array.isArray(data)) setTrendingSongs(data.slice(0, 10));
+      } catch (error) {
+        logger.error('Failed to fetch trending songs', error);
+      } finally {
+        setLoadingTrending(false);
+      }
+    };
+    fetchTrending();
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -85,12 +122,7 @@ export default function Home() {
     }
   }, [currentSong?.artist, currentSong?.title]);
 
-  // Mock Active Rooms
-  const activeRooms = [
-    { id: '1', name: 'Global Top 50 Sync', listeners: 45, img: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=300&q=80' },
-    { id: '2', name: 'Lofi Focus', listeners: 12, img: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=300&q=80' },
-    { id: '3', name: 'Late Night Drives', listeners: 8, img: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=300&q=80' }
-  ];
+  // Mock Active Rooms removed — now fetching real data
 
   return (
     <>
@@ -220,6 +252,37 @@ export default function Home() {
         </section>
       )}
 
+      {/* Trending Songs Section */}
+      <section className="mb-10">
+        <div className="px-6 md:px-10 flex justify-between items-end mb-5">
+          <h2 className="text-[22px] font-bold tracking-tight">Trending Now</h2>
+        </div>
+        <div className="flex gap-4 px-6 md:px-10 overflow-x-auto snap-x snap-mandatory pb-4" style={{ scrollbarWidth: 'none' }}>
+          {loadingTrending ? (
+            <>
+              {[1, 2, 3, 4, 5].map(i => <SongCardSkeleton key={i} />)}
+            </>
+          ) : trendingSongs.length > 0 ? (
+            trendingSongs.map((song, index) => (
+              <div 
+                key={song.id} 
+                onClick={() => setQueue(trendingSongs, index)}
+                className="shrink-0 w-[140px] snap-start cursor-pointer group"
+              >
+                <div className="w-[140px] h-[140px] rounded-[20px] overflow-hidden relative mb-3 shadow-lg">
+                  <img src={song.image || 'https://via.placeholder.com/150'} alt={song.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Play size={24} fill="white" className="text-white" />
+                  </div>
+                </div>
+                <h3 className="text-sm font-bold mb-0.5 line-clamp-1">{song.title}</h3>
+                <p className="text-xs text-[var(--color-secondary)] font-medium line-clamp-1">{song.artist || song.subtitle}</p>
+              </div>
+            ))
+          ) : null}
+        </div>
+      </section>
+
       {/* Active Rooms Section */}
       <section className="mb-10">
         <div className="px-6 md:px-10 flex justify-between items-end mb-5">
@@ -227,19 +290,27 @@ export default function Home() {
           <Link to="/rooms" className="text-[13px] font-medium text-[var(--color-secondary)] hover:text-white transition-colors bg-transparent border-none cursor-pointer">View all</Link>
         </div>
         <div className="flex gap-4 px-6 md:px-10 overflow-x-auto snap-x snap-mandatory pb-4 lg:flex-wrap" style={{ scrollbarWidth: 'none' }}>
-          {activeRooms.map(room => (
-            <Link to="/rooms" key={room.id} className="shrink-0 w-[150px] snap-start cursor-pointer group no-underline text-white">
-              <div className="w-[150px] h-[150px] rounded-[20px] overflow-hidden relative mb-3">
-                <img src={room.img} alt={room.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                <div className="absolute bottom-3 left-3 text-white flex items-center gap-1.5">
-                   <Users size={14} />
-                   <span className="text-xs font-bold">{room.listeners}</span>
+          {loadingRooms ? (
+            <>
+              {[1, 2, 3].map(i => <SongCardSkeleton key={i} />)}
+            </>
+          ) : activeRooms.length > 0 ? (
+            activeRooms.map(room => (
+              <Link to={`/rooms/${room._id}`} key={room._id} className="shrink-0 w-[150px] snap-start cursor-pointer group no-underline text-white">
+                <div className="w-[150px] h-[150px] rounded-[20px] overflow-hidden relative mb-3">
+                  <img src={room.coverImage || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=300&q=80'} alt={room.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                  <div className="absolute bottom-3 left-3 text-white flex items-center gap-1.5">
+                     <Users size={14} />
+                     <span className="text-xs font-bold">{room.memberCount || room.listenerCount || 1}</span>
+                  </div>
                 </div>
-              </div>
-              <h3 className="text-sm font-bold mb-0.5">{room.name}</h3>
-            </Link>
-          ))}
+                <h3 className="text-sm font-bold mb-0.5">{room.name}</h3>
+              </Link>
+            ))
+          ) : (
+            <p className="text-secondary text-sm px-2">No active rooms right now.</p>
+          )}
         </div>
       </section>
     </>

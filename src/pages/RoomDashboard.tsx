@@ -1,17 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useRoomStore } from '../store';
-import { Users, Send, Disc, ArrowLeft } from 'lucide-react';
+import { socket } from '../socket';
+import { Users, Send, Disc, ArrowLeft, ListMusic } from 'lucide-react';
 import AuthModal from '../components/AuthModal';
 import { RoomDashboardSkeleton } from '../components/SkeletonLoader';
+
+// Allowed reactions per PRD
+const REACTIONS = ['❤️', '🔥', '😂', '😍', '👏', '😮', '🎵', '🎉'];
 
 export default function RoomDashboard() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const { currentSong, isPlaying, listeners, messages, sendChatMessage, leaveRoom, roomId: activeRoomId, user, joinRoom } = useRoomStore();
+  const { currentSong, isPlaying, listeners, messages, sendChatMessage, leaveRoom, roomId: activeRoomId, user, joinRoom, roomQueue } = useRoomStore();
   const [chatInput, setChatInput] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isJoining, setIsJoining] = useState(true);
+  const [reactionBarVisible, setReactionBarVisible] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,6 +51,13 @@ export default function RoomDashboard() {
   const handleLeave = () => {
     leaveRoom();
     navigate('/rooms');
+  };
+
+  const handleSendReaction = (emoji: string) => {
+    if (roomId) {
+      socket.emit('room:reaction', { roomId, emoji });
+      setReactionBarVisible(false);
+    }
   };
 
   if (!user || isJoining) {
@@ -90,6 +102,54 @@ export default function RoomDashboard() {
             <p className="text-lg text-secondary font-medium line-clamp-1">
               {currentSong.artist}
             </p>
+
+            {/* Reactions */}
+            <div className="mt-6">
+              {reactionBarVisible ? (
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-3 rounded-full border border-white/10 animate-in fade-in zoom-in duration-200">
+                  {REACTIONS.map(emoji => (
+                    <button
+                      key={emoji}
+                      onClick={() => handleSendReaction(emoji)}
+                      className="text-xl hover:scale-125 transition-transform"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setReactionBarVisible(true)}
+                  className="bg-white/10 hover:bg-white/20 text-white px-5 py-2.5 rounded-full text-sm font-bold transition-colors"
+                >
+                  React 🎉
+                </button>
+              )}
+            </div>
+
+            {/* Room Queue */}
+            {roomQueue && roomQueue.length > 0 && (
+              <div className="mt-6 w-full max-w-sm">
+                <h4 className="text-sm font-bold text-secondary mb-3 flex items-center gap-2">
+                  <ListMusic size={16} /> Up Next ({roomQueue.length})
+                </h4>
+                <div className="flex flex-col gap-2 max-h-40 overflow-y-auto scrollbar-hide">
+                  {roomQueue.map((item: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-3 bg-white/5 rounded-xl p-2.5 border border-white/5">
+                      <img 
+                        src={item.track?.image || 'https://via.placeholder.com/150'} 
+                        alt={item.track?.title || 'Song'} 
+                        className="w-9 h-9 rounded-lg object-cover shrink-0"
+                      />
+                      <div className="overflow-hidden flex-1">
+                        <p className="text-sm font-bold truncate">{item.track?.title || 'Unknown'}</p>
+                        <p className="text-xs text-secondary truncate">{item.track?.artist || ''}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center text-secondary/60 animate-pulse">

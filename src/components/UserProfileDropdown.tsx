@@ -186,7 +186,7 @@ export default function UserProfileDropdown() {
               <div>
                 <label className="block text-sm font-medium text-secondary mb-2">Avatar URL (Optional)</label>
                 <input 
-                  type="url" 
+                  type="text" 
                   value={editAvatar?.startsWith('data:') ? '' : editAvatar}
                   onChange={(e) => setEditAvatar(e.target.value)}
                   placeholder="Or paste a URL: https://example.com/avatar.jpg"
