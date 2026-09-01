@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Check } from 'lucide-react';
 import { authenticatedFetch } from '../api';
 
 interface CreateRoomModalProps {
@@ -8,9 +8,22 @@ interface CreateRoomModalProps {
   onRoomCreated: (roomId: string) => void;
 }
 
+// Curated cover art options users can pick for their room
+const ROOM_COVERS = [
+  { id: 'concert', label: 'Concert', url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=600&q=80' },
+  { id: 'neon', label: 'Neon Lights', url: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=600&q=80' },
+  { id: 'studio', label: 'Studio', url: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=600&q=80' },
+  { id: 'vinyl', label: 'Vinyl', url: 'https://images.unsplash.com/photo-1521223890158-f9f7c3d5d504?auto=format&fit=crop&w=600&q=80' },
+  { id: 'party', label: 'Party', url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80' },
+  { id: 'headphones', label: 'Headphones', url: 'https://images.unsplash.com/photo-1484704849700-f032a568e944?auto=format&fit=crop&w=600&q=80' },
+  { id: 'dj', label: 'DJ Deck', url: 'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?auto=format&fit=crop&w=600&q=80' },
+  { id: 'night', label: 'Night Sky', url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=600&q=80' },
+];
+
 export default function CreateRoomModal({ isOpen, onClose, onRoomCreated }: CreateRoomModalProps) {
   const [name, setName] = useState('');
   const [genre, setGenre] = useState('Pop');
+  const [coverImage, setCoverImage] = useState(ROOM_COVERS[0].url);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -29,7 +42,8 @@ export default function CreateRoomModal({ isOpen, onClose, onRoomCreated }: Crea
           name,
           description: `Genre: ${genre}`, // We map genre to description for now
           visibility: 'PUBLIC',
-          joinMode: 'OPEN_JOIN'
+          joinMode: 'OPEN_JOIN',
+          coverImage
         })
       });
 
@@ -45,7 +59,7 @@ export default function CreateRoomModal({ isOpen, onClose, onRoomCreated }: Crea
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#111111] border border-glassBorder p-8 rounded-[24px] w-full max-w-md shadow-2xl relative animate-in fade-in zoom-in duration-300">
+      <div className="bg-[#111111] border border-glassBorder p-6 sm:p-8 rounded-[24px] w-full max-w-md shadow-2xl relative animate-in fade-in zoom-in duration-300 max-h-[90vh] overflow-y-auto">
         
         <button 
           onClick={onClose}
@@ -90,6 +104,30 @@ export default function CreateRoomModal({ isOpen, onClose, onRoomCreated }: Crea
               <option value="Rock">Rock</option>
               <option value="Global">Global / Mixed</option>
             </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-white/80">Room Cover</label>
+            <div className="grid grid-cols-4 gap-2.5">
+              {ROOM_COVERS.map((cover) => (
+                <button
+                  key={cover.id}
+                  type="button"
+                  onClick={() => setCoverImage(cover.url)}
+                  className={`relative rounded-xl overflow-hidden aspect-square cursor-pointer border-2 transition-all ${coverImage === cover.url ? 'border-accent shadow-[0_0_12px_rgba(34,197,94,0.4)]' : 'border-transparent hover:border-white/30'}`}
+                  title={`${cover.label} cover`}
+                >
+                  <img src={cover.url} alt={cover.label} className="w-full h-full object-cover" />
+                  {coverImage === cover.url && (
+                    <span className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                      <span className="w-6 h-6 bg-accent rounded-full flex items-center justify-center">
+                        <Check size={14} className="text-black" strokeWidth={3} />
+                      </span>
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
           <button 

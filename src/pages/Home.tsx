@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Play, Radio, Users } from 'lucide-react';
+import { Play, Radio, Users, Music } from 'lucide-react';
 import { useRoomStore } from '../store';
 import { Link } from 'react-router-dom';
 import UserProfileDropdown from '../components/UserProfileDropdown';
@@ -46,6 +46,9 @@ export default function Home() {
     };
     fetchRooms();
   }, []);
+
+  // Only rooms that are currently playing a song count as "Active"
+  const playingRooms = activeRooms.filter(room => room.isPlaying && room.currentTrackName);
 
   // Fetch trending songs for discovery
   useEffect(() => {
@@ -294,22 +297,46 @@ export default function Home() {
             <>
               {[1, 2, 3].map(i => <SongCardSkeleton key={i} />)}
             </>
-          ) : activeRooms.length > 0 ? (
-            activeRooms.map(room => (
+          ) : playingRooms.length > 0 ? (
+            playingRooms.map(room => (
               <Link to={`/rooms/${room._id}`} key={room._id} className="shrink-0 w-[150px] snap-start cursor-pointer group no-underline text-white">
                 <div className="w-[150px] h-[150px] rounded-[20px] overflow-hidden relative mb-3">
-                  <img src={room.coverImage || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=300&q=80'} alt={room.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                  <div className="absolute bottom-3 left-3 text-white flex items-center gap-1.5">
-                     <Users size={14} />
-                     <span className="text-xs font-bold">{room.memberCount || room.listenerCount || 1}</span>
+                  <img src={room.coverImage || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=300&q=80'} alt={room.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent"></div>
+                  {/* Live badge */}
+                  <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-red-500/90 px-2 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-white">Live</span>
+                  </div>
+                  <div className="absolute bottom-2.5 left-3 right-3 text-white">
+                    {room.currentTrackName && (
+                      <p className="text-[11px] font-semibold line-clamp-1 flex items-center gap-1">
+                        <Music size={11} className="shrink-0" /> {room.currentTrackName}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-1.5 mt-1">
+                       <Users size={12} />
+                       <span className="text-[11px] font-bold">{room.memberCount || room.listenerCount || 1}</span>
+                    </div>
                   </div>
                 </div>
-                <h3 className="text-sm font-bold mb-0.5">{room.name}</h3>
+                <h3 className="text-sm font-bold mb-0.5 line-clamp-1">{room.name}</h3>
+                {room.hostId?.username && (
+                  <p className="text-xs text-[var(--color-secondary)] font-medium line-clamp-1">{room.hostId.username}</p>
+                )}
               </Link>
             ))
           ) : (
-            <p className="text-secondary text-sm px-2">No active rooms right now.</p>
+            <div className="w-full flex flex-col items-center justify-center text-center py-12 px-4 mx-2 rounded-[24px] border border-dashed border-white/15 bg-white/[0.02]">
+              <Radio size={40} className="text-secondary/40 mb-3" />
+              <p className="text-[15px] font-semibold text-white/80">No rooms are currently active</p>
+              <p className="text-sm text-secondary mt-1 max-w-xs">
+                No rooms are playing right now. Start a listening session or find one in the rooms page.
+              </p>
+              <Link to="/rooms" className="mt-5 bg-white text-black rounded-full px-5 py-2.5 text-[13px] font-bold tracking-wide hover:scale-105 transition-transform">
+                Browse Rooms
+              </Link>
+            </div>
           )}
         </div>
       </section>

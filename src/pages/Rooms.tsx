@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Radio, Users, Plus } from 'lucide-react';
+import { Radio, Users, Plus, Music } from 'lucide-react';
 import { useRoomStore } from '../store';
 import { logger } from '../core/logger';
 import AuthModal from '../components/AuthModal';
@@ -14,6 +14,9 @@ interface Room {
   description: string;
   hostId: { username: string };
   memberCount: number;
+  coverImage?: string;
+  isPlaying?: boolean;
+  currentTrackName?: string;
 }
 
 export default function Rooms() {
@@ -107,7 +110,7 @@ export default function Rooms() {
             rooms.map((room) => (
               <div 
                 key={room._id}
-                className={`glass-panel p-5 rounded-[24px] transition-all cursor-pointer hover:bg-white/5 border ${roomId === room._id ? 'border-accent shadow-[0_0_20px_rgba(34,197,94,0.2)]' : 'border-[var(--color-glassBorder)]'}`}
+                className={`glass-panel rounded-[24px] transition-all cursor-pointer hover:bg-white/5 border overflow-hidden ${roomId === room._id ? 'border-accent shadow-[0_0_20px_rgba(34,197,94,0.2)]' : 'border-[var(--color-glassBorder)]'}`}
                 onClick={() => {
                   if (!user) {
                     setShowAuthModal(true);
@@ -117,22 +120,43 @@ export default function Rooms() {
                   }
                 }}
               >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full w-fit">
-                    <Radio size={14} className={roomId === room._id ? "text-accent animate-pulse" : "text-white"} />
-                    <span className="text-xs font-bold tracking-wide uppercase">{getGenre(room.description)}</span>
+                {/* Room cover */}
+                <div className="relative h-32 md:h-40">
+                  <img 
+                    src={room.coverImage || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=600&q=80'} 
+                    alt={room.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#111111] via-black/30 to-transparent"></div>
+
+                  <div className="absolute top-3 left-3 flex items-center gap-2">
+                    <div className="flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full w-fit border border-white/10">
+                      <Radio size={14} className={roomId === room._id ? "text-accent animate-pulse" : "text-white"} />
+                      <span className="text-xs font-bold tracking-wide uppercase">{getGenre(room.description)}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 bg-black/40 px-3 py-1 rounded-full text-[var(--color-secondary)] text-xs font-medium border border-glassBorder">
+
+                  <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full text-white text-xs font-medium border border-white/10">
                     <Users size={14} /> {room.memberCount || 1}
                   </div>
-                </div>
-                
-                <h3 className="text-xl font-bold mb-1 line-clamp-1">{room.name}</h3>
-                <p className="text-[var(--color-secondary)] text-sm font-medium mb-6">Hosted by {room.hostId?.username || 'Unknown'}</p>
 
-                <button className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors ${roomId === room._id ? 'bg-accent/20 text-accent' : 'bg-white/10 text-white hover:bg-white/20'}`}>
-                  {roomId === room._id ? 'Joined' : 'Join Room'}
-                </button>
+                  {room.isPlaying && room.currentTrackName && (
+                    <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0"></span>
+                      <Music size={13} className="text-white/80 shrink-0" />
+                      <span className="text-xs font-medium text-white/90 truncate">{room.currentTrackName}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-5">
+                  <h3 className="text-xl font-bold mb-1 line-clamp-1">{room.name}</h3>
+                  <p className="text-[var(--color-secondary)] text-sm font-medium mb-6">Hosted by {room.hostId?.username || 'Unknown'}</p>
+
+                  <button className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors ${roomId === room._id ? 'bg-accent/20 text-accent' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+                    {roomId === room._id ? 'Joined' : 'Join Room'}
+                  </button>
+                </div>
               </div>
             ))
           )}

@@ -156,6 +156,17 @@ function registerSocketListeners() {
     logger.info('Room ended', data.message);
     useRoomStore.setState({ roomId: null, roomRole: null, isPlaying: false, currentSong: null, messages: [], mode: 'PERSONAL' });
   });
+
+  socket.on('room:queue-cleared', (data) => {
+    logger.info('Room queue cleared', data.message);
+    useRoomStore.setState({
+      isPlaying: false,
+      currentTime: 0,
+      currentSong: null,
+      roomQueue: [],
+      stateTimestamp: data.state?.stateTimestamp || Date.now(),
+    });
+  });
 }
 
 export const useRoomStore = create<RoomState>()(
