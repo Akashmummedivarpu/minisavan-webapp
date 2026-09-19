@@ -22,6 +22,22 @@ function App() {
   const location = useLocation();
   const currentSong = useRoomStore((s) => s.currentSong);
 
+  // Restore the room session after a page reload: merely having a persisted
+  // roomId is NOT enough, because the server identifies each socket connection
+  // via socket.userId which is only set by room:join. Without rejoining, every
+  // permission-gated emit (change-track/play/chat/...) fails with
+  // "Permission denied" while the UI looks joined. Rejoining also cancels the
+  // disconnect grace period and re-syncs role/queue/playback state.
+  // Runs once per page load; the dashboard's own join logic is a no-op when
+  // already joined, so this can't double-join.
+  React.useEffect(() => {
+    const { user, roomId, joinRoom } = useRoomStore.getState();
+    if (user && roomId) {
+      joinRoom(roomId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Dynamic ambient background based on route or playing song's album art
   const getAmbientBg = () => {
     // Prefer the currently playing song's album art for immersive feel

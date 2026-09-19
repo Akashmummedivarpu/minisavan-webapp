@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Radio, Users, Plus, Music } from 'lucide-react';
+import { Radio, Users, Plus, Music, Ticket, Loader2 } from 'lucide-react';
 import { useRoomStore } from '../store';
 import { logger } from '../core/logger';
+import { authenticatedFetch } from '../api';
 import AuthModal from '../components/AuthModal';
 import CreateRoomModal from '../components/CreateRoomModal';
 import UserProfileDropdown from '../components/UserProfileDropdown';
@@ -28,6 +29,11 @@ export default function Rooms() {
   // Modals state
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Join-by-code state
+  const [inviteCode, setInviteCode] = useState('');
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [codeError, setCodeError] = useState('');
 
   useEffect(() => {
     fetchRooms();
@@ -63,6 +69,28 @@ export default function Rooms() {
     navigate(`/rooms/${newRoomId}`);
   };
 
+  const handleJoinByCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = inviteCode.trim();
+    if (!code) return;
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    setCodeLoading(true);
+    setCodeError('');
+    try {
+      const res = await authenticatedFetch(`/rooms/join/${encodeURIComponent(code)}`);
+      // The dashboard picks ?code= up and presents it on room:join
+      // (grants entry to PRIVATE rooms holding a valid code)
+      navigate(`/rooms/${res.roomId}?code=${encodeURIComponent(code)}`);
+    } catch (err: any) {
+      setCodeError(err.message || 'Invalid invite code');
+    } finally {
+      setCodeLoading(false);
+    }
+  };
+
   // Helper to extract genre from description mapping
   const getGenre = (desc: string) => {
     if (desc && desc.startsWith('Genre: ')) {
@@ -95,6 +123,33 @@ export default function Rooms() {
           </button>
         </div>
       </header>
+
+      {/* Join with invite code */}
+      <div className="px-6 md:px-10 mb-6">
+        <form onSubmit={handleJoinByCode} className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 max-w-xs">
+              <Ticket size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary" />
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                placeholder="Have an invite code?"
+                maxLength={12}
+                className="w-full bg-white/5 border border-glassBorder rounded-full pl-11 pr-4 py-2.5 text-sm font-mono tracking-[0.2em] uppercase text-white placeholder:text-secondary placeholder:font-sans placeholder:tracking-normal placeholder:normal-case focus:outline-none focus:border-accent/50 transition-colors"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={codeLoading || !inviteCode.trim()}
+              className="bg-white/10 hover:bg-white/20 text-white px-5 py-2.5 rounded-full font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {codeLoading ? <Loader2 size={16} className="animate-spin" /> : 'Join'}
+            </button>
+          </div>
+          {codeError && <p className="text-red-400 text-xs font-medium ml-1">{codeError}</p>}
+        </form>
+      </div>
 
       {loading ? (
         <div className="px-6 md:px-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

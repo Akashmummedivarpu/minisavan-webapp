@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useRoomStore } from '../store';
 import { socket } from '../socket';
-import { Users, Send, Disc, ArrowLeft, ListMusic } from 'lucide-react';
+import { Users, Send, Disc, ArrowLeft, ListMusic, Radio, Copy, Check, UserPlus, UserCheck, UserX, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import AuthModal from '../components/AuthModal';
 import { RoomDashboardSkeleton } from '../components/SkeletonLoader';
 
@@ -11,12 +12,14 @@ const REACTIONS = ['❤️', '🔥', '😂', '😍', '👏', '😮', '🎵', '�
 
 export default function RoomDashboard() {
   const { roomId } = useParams<{ roomId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { currentSong, isPlaying, listeners, messages, sendChatMessage, leaveRoom, roomId: activeRoomId, user, joinRoom, roomQueue } = useRoomStore();
+  const { currentSong, isPlaying, listeners, messages, sendChatMessage, leaveRoom, roomId: activeRoomId, user, joinRoom, roomQueue, joinError, roomNotice, clearRoomNotice, roomMeta, roomRole, pendingRequests, joinRequested, approveJoinRequest, denyJoinRequest } = useRoomStore();
   const [chatInput, setChatInput] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isJoining, setIsJoining] = useState(true);
   const [reactionBarVisible, setReactionBarVisible] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,14 +29,29 @@ export default function RoomDashboard() {
       return;
     }
 
-    // If logged in but not in this room, join it automatically
+    // If logged in but not in this room, join it automatically.
+    // A ?code= param carries an invite code (join-by-code links).
     if (activeRoomId !== roomId && roomId) {
       setIsJoining(true);
-      joinRoom(roomId);
+      joinRoom(roomId, searchParams.get('code') || undefined);
     } else {
       setIsJoining(false);
     }
-  }, [user, activeRoomId, roomId, joinRoom]);
+  }, [user, activeRoomId, roomId, joinRoom, searchParams]);
+
+  // A failed join must not leave the user staring at a skeleton forever
+  useEffect(() => {
+    if (joinError) setIsJoining(false);
+  }, [joinError]);
+
+  // Room ended while inside (or notice set): inform + take user back to rooms
+  useEffect(() => {
+    if (roomNotice) {
+      toast.error(roomNotice);
+      clearRoomNotice();
+      navigate('/rooms');
+    }
+  }, [roomNotice, clearRoomNotice, navigate]);
 
   useEffect(() => {
     // Scroll to bottom of chat
@@ -60,7 +78,78 @@ export default function RoomDashboard() {
     }
   };
 
-  if (!user || isJoining) {
+  const handleCopyCode = async () => {
+    const code = roomMeta?.inviteCode;
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      // Clipboard API unavailable (e.g. non-secure context) — fall back
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  };
+
+  if (!user) {
+    return (
+      <div className="w-full">
+        <RoomDashboardSkeleton />
+        <AuthModal isOpen={showAuthModal} onClose={() => navigate('/rooms')} />
+      </div>
+    );
+  }
+
+  // A failed join shows an explanatory error instead of an endless skeleton
+  // (checked independently: isJoining is already false once joinError arrives)
+  if (joinError && activeRoomId !== roomId) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center text-center py-16 px-6">
+        <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-5">
+          <Radio size={28} className="text-secondary" />
+        </div>
+        <h2 className="text-xl font-bold mb-2">Couldn't join this room</h2>
+        <p className="text-secondary text-sm mb-6 max-w-xs">{joinError}</p>
+        <button
+          onClick={() => navigate('/rooms')}
+          className="bg-white text-black font-bold py-3 px-6 rounded-xl text-sm hover:scale-105 transition-transform"
+        >
+          Browse Rooms
+        </button>
+      </div>
+    );
+  }
+
+  // Approval-required room: request filed, waiting on the host
+  if (joinRequested && activeRoomId !== roomId) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center text-center py-16 px-6">
+        <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-5">
+          <UserPlus size={28} className="text-accent animate-pulse" />
+        </div>
+        <h2 className="text-xl font-bold mb-2">Request sent</h2>
+        <p className="text-secondary text-sm mb-6 max-w-xs">
+          The host has been notified. You'll join automatically once approved — no need to stay on this page.
+        </p>
+        <div className="flex items-center gap-2 text-secondary text-sm mb-6">
+          <Loader2 size={16} className="animate-spin" /> Waiting for approval…
+        </div>
+        <button
+          onClick={() => navigate('/rooms')}
+          className="bg-white/10 text-white font-bold py-3 px-6 rounded-xl text-sm hover:bg-white/20 transition-colors"
+        >
+          Browse Rooms
+        </button>
+      </div>
+    );
+  }
+
+  if (isJoining) {
     return (
       <div className="w-full">
         <RoomDashboardSkeleton />
@@ -84,6 +173,17 @@ export default function RoomDashboard() {
         <div className="absolute top-4 right-4 md:top-6 md:right-6 flex items-center gap-2 text-white/90 bg-accent/20 border border-accent/30 px-3 md:px-4 py-2 rounded-full font-medium text-sm backdrop-blur-md shadow-[0_0_15px_rgba(34,197,94,0.3)] z-10">
           <Users size={16} /> {listeners} {listeners === 1 ? 'Listener' : 'Listeners'}
         </div>
+
+        {roomMeta?.inviteCode && (
+          <button
+            onClick={handleCopyCode}
+            title="Copy invite code — share it so friends can join"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 md:bottom-6 flex items-center gap-2 text-white/80 hover:text-white transition-colors bg-black/40 px-3.5 py-2 rounded-full font-mono text-xs tracking-[0.2em] backdrop-blur-md border border-white/10 z-10"
+          >
+            {codeCopied ? <Check size={14} className="text-accent" /> : <Copy size={14} />}
+            {codeCopied ? 'COPIED' : roomMeta.inviteCode}
+          </button>
+        )}
 
         {currentSong ? (
           <div className="flex flex-col items-center animate-in zoom-in duration-500 w-full max-w-sm text-center pt-2 md:pt-8">
@@ -161,6 +261,37 @@ export default function RoomDashboard() {
 
       {/* Chat Sidebar */}
       <div className="w-full lg:w-[380px] h-[45vh] md:h-[420px] lg:h-full glass-panel rounded-[32px] flex flex-col border border-white/10 overflow-hidden shadow-2xl">
+        {(roomRole === 'ADMIN' || roomRole === 'CONTROLLER') && pendingRequests.length > 0 && (
+          <div className="p-4 md:p-5 border-b border-accent/20 bg-accent/5">
+            <h4 className="font-bold text-sm flex items-center gap-2 mb-3">
+              <UserPlus size={16} className="text-accent" />
+              Join Requests ({pendingRequests.length})
+            </h4>
+            <div className="flex flex-col gap-2 max-h-36 overflow-y-auto scrollbar-hide">
+              {pendingRequests.map((req: any) => (
+                <div key={req.userId} className="flex items-center justify-between gap-2 bg-white/5 rounded-xl px-3 py-2 border border-white/5">
+                  <span className="text-sm font-bold truncate">{req.username || 'Someone'}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => approveJoinRequest(req.userId)}
+                      title={`Approve ${req.username || 'user'}`}
+                      className="p-2 bg-accent/20 text-accent rounded-full hover:bg-accent/30 transition-colors"
+                    >
+                      <UserCheck size={15} />
+                    </button>
+                    <button
+                      onClick={() => denyJoinRequest(req.userId)}
+                      title={`Deny ${req.username || 'user'}`}
+                      className="p-2 bg-red-500/15 text-red-400 rounded-full hover:bg-red-500/25 transition-colors"
+                    >
+                      <UserX size={15} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="p-4 md:p-5 border-b border-white/5 bg-white/5 backdrop-blur-md">
           <h3 className="font-bold text-lg flex items-center gap-2">
             Live Chat

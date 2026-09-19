@@ -13,6 +13,7 @@ interface User {
 interface ChatMessage {
   userId: string;
   username: string;
+  avatar?: string | null;
   message: string;
   createdAt: number;
 }
@@ -42,6 +43,15 @@ interface RoomState {
   lastSequenceNumber: number;
   roomMembers: any[];
   roomQueue: any[];
+  roomMeta: any | null; // room document from room:state metadata (name, inviteCode, ...)
+
+  // Room session notices / errors (M1/M2: surfaced by RoomDashboard)
+  roomNotice: string | null; // transient message, e.g. room ended while inside
+  joinError: string | null; // last room:join failure reason
+  clearRoomNotice: () => void;
+  // Approval-required join flow (M6)
+  pendingRequests: any[];
+  joinRequested: boolean; // current user has a pending join request for the viewed room
 
   // Personal queue saved when entering room
   savedQueue: any[];
@@ -51,8 +61,10 @@ interface RoomState {
   queue: any[];
   currentIndex: number;
 
-  joinRoom: (roomId: string) => void;
+  joinRoom: (roomId: string, inviteCode?: string) => void;
   leaveRoom: () => void;
+  approveJoinRequest: (userId: string) => void;
+  denyJoinRequest: (userId: string) => void;
   playSong: (song: any) => void;
   togglePlay: () => void;
   seek: (time: number) => void;
@@ -92,6 +104,10 @@ function registerSocketListeners() {
         lastSequenceNumber: nextSeq,
         roomMembers: data.members || [],
         roomQueue: data.queue || [],
+        roomMeta: data.metadata || null,
+        pendingRequests: data.pendingRequests || [],
+        // Chat history backfill (live messages append on top of this)
+        messages: Array.isArray(data.chatHistory) ? data.chatHistory : [],
       });
     }
   });
@@ -152,9 +168,38 @@ function registerSocketListeners() {
     logger.info('Room admin transferred', data.message);
   });
 
+  socket.on('room:join-requested', (data) => {
+    useRoomStore.setState((state) => {
+      if (state.pendingRequests.some((r: any) => r.userId?.toString() === data.userId?.toString())) {
+        return state;
+      }
+      return { pendingRequests: [...state.pendingRequests, data] };
+    });
+  });
+
+  socket.on('room:request-decided', (data) => {
+    const current = useRoomStore.getState();
+    useRoomStore.setState((state) => ({
+      pendingRequests: state.pendingRequests.filter(
+        (r: any) => r.userId?.toString() !== data.userId?.toString()
+      ),
+    }));
+    // If this decision concerns me, (re)join on approval or show denial
+    if (current.user && data.userId?.toString() === current.user.id?.toString()) {
+      if (data.approved) {
+        useRoomStore.getState().joinRoom(data.roomId);
+      } else {
+        useRoomStore.setState({ joinRequested: false, joinError: 'The host declined your request to join.' });
+      }
+    }
+    if (data.listenerCount !== undefined) {
+      useRoomStore.setState({ listeners: data.listenerCount });
+    }
+  });
+
   socket.on('room:ended', (data) => {
     logger.info('Room ended', data.message);
-    useRoomStore.setState({ roomId: null, roomRole: null, isPlaying: false, currentSong: null, messages: [], mode: 'PERSONAL' });
+    useRoomStore.setState({ roomId: null, roomRole: null, isPlaying: false, currentSong: null, messages: [], mode: 'PERSONAL', roomMeta: null, roomNotice: data.message || 'Room ended' });
   });
 
   socket.on('room:queue-cleared', (data) => {
@@ -179,7 +224,25 @@ export const useRoomStore = create<RoomState>()(
         user: null,
         token: null,
         setAuth: (user, token) => set({ user, token }),
-        logout: () => set({ user: null, token: null }),
+        logout: () => set({
+          user: null,
+          token: null,
+          // Clear room session so a different account never inherits it
+          roomId: null,
+          roomRole: null,
+          mode: 'PERSONAL',
+          isPlaying: false,
+          currentSong: null,
+          messages: [],
+          roomMembers: [],
+          roomQueue: [],
+          roomMeta: null,
+          lastSequenceNumber: -1,
+          roomNotice: null,
+          joinError: null,
+          pendingRequests: [],
+          joinRequested: false,
+        }),
 
         // Mode
         mode: 'PERSONAL',
@@ -197,6 +260,12 @@ export const useRoomStore = create<RoomState>()(
         lastSequenceNumber: -1,
         roomMembers: [],
         roomQueue: [],
+        roomMeta: null,
+        roomNotice: null,
+        joinError: null,
+        clearRoomNotice: () => set({ roomNotice: null }),
+        pendingRequests: [],
+        joinRequested: false,
 
         // Saved personal state
         savedQueue: [],
@@ -205,7 +274,7 @@ export const useRoomStore = create<RoomState>()(
         queue: [],
         currentIndex: -1,
 
-        joinRoom: (roomId) => {
+        joinRoom: (roomId, inviteCode) => {
           const { user, mode, queue, currentIndex } = get();
           if (!user) return;
 
@@ -218,21 +287,28 @@ export const useRoomStore = create<RoomState>()(
               messages: [],
               roomQueue: [],
               roomMembers: [],
+              roomMeta: null,
               lastSequenceNumber: -1,
               isPlaying: false,
               currentTime: 0,
               currentSong: null,
+              pendingRequests: [],
+              joinRequested: false,
             });
           }
 
           if (!socket.connected) socket.connect();
-          socket.emit('room:join', { roomId, userId: user.id }, (res: any) => {
+          set({ joinError: null, joinRequested: false });
+          socket.emit('room:join', { roomId, userId: user.id, inviteCode }, (res: any) => {
             if (res.success) {
-              set({ roomId });
+              set({ roomId, joinError: null, joinRequested: false });
+            } else if (res.requested) {
+              // Approval-required room: request filed, wait for host decision
+              set({ joinRequested: true });
             } else {
               logger.error("Failed to join room", res.error);
-              // Restore personal mode on failure
-              useRoomStore.setState({ mode: 'PERSONAL', roomId: null });
+              // Restore personal mode on failure; dashboard surfaces joinError
+              useRoomStore.setState({ mode: 'PERSONAL', roomId: null, joinError: res.error || 'Failed to join room' });
             }
           });
         },
@@ -249,8 +325,13 @@ export const useRoomStore = create<RoomState>()(
             messages: [],
             roomMembers: [],
             roomQueue: [],
+            roomMeta: null,
             mode: 'PERSONAL',
             lastSequenceNumber: -1,
+            roomNotice: null,
+            joinError: null,
+            pendingRequests: [],
+            joinRequested: false,
             // Restore personal queue
             queue: savedQueue,
             currentIndex: savedIndex,
@@ -299,6 +380,16 @@ export const useRoomStore = create<RoomState>()(
           if (roomId && user && message.trim()) {
             socket.emit('room:chat', { roomId, message });
           }
+        },
+
+        approveJoinRequest: (userId) => {
+          const { roomId } = get();
+          if (roomId) socket.emit('room:approve-request', { roomId, userId });
+        },
+
+        denyJoinRequest: (userId) => {
+          const { roomId } = get();
+          if (roomId) socket.emit('room:deny-request', { roomId, userId });
         },
 
         setQueue: (queue, startIndex = 0) => {
@@ -368,8 +459,11 @@ export const useRoomStore = create<RoomState>()(
     },
     {
       name: 'sonicroom-storage',
-      // Only persist auth state
-      partialize: (state) => ({ user: state.user, token: state.token }),
+      // Persist auth + room session so a page reload keeps the user in their room.
+      // Volatile playback state (song, queue, chat, role) is re-synced on rejoin.
+      // NOTE: rejoining happens in App's boot effect (not onRehydrateStorage),
+      // because it needs the hydrated state AND must run exactly once per load.
+      partialize: (state) => ({ user: state.user, token: state.token, roomId: state.roomId, mode: state.mode }),
     }
   )
 );

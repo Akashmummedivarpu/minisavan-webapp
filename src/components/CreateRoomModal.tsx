@@ -23,6 +23,8 @@ const ROOM_COVERS = [
 export default function CreateRoomModal({ isOpen, onClose, onRoomCreated }: CreateRoomModalProps) {
   const [name, setName] = useState('');
   const [genre, setGenre] = useState('Pop');
+  const [visibility, setVisibility] = useState('PUBLIC');
+  const [joinMode, setJoinMode] = useState('OPEN_JOIN');
   const [coverImage, setCoverImage] = useState(ROOM_COVERS[0].url);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -41,8 +43,8 @@ export default function CreateRoomModal({ isOpen, onClose, onRoomCreated }: Crea
         body: JSON.stringify({
           name,
           description: `Genre: ${genre}`, // We map genre to description for now
-          visibility: 'PUBLIC',
-          joinMode: 'OPEN_JOIN',
+          visibility,
+          joinMode,
           coverImage
         })
       });
@@ -127,6 +129,31 @@ export default function CreateRoomModal({ isOpen, onClose, onRoomCreated }: Crea
                   )}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-white/80">Visibility</label>
+              <select
+                value={visibility}
+                onChange={(e) => setVisibility(e.target.value)}
+                className="bg-[#1a1a1a] border border-glassBorder rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent transition-colors appearance-none"
+              >
+                <option value="PUBLIC">Public</option>
+                <option value="PRIVATE">Private</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-white/80">Join Mode</label>
+              <select
+                value={joinMode}
+                onChange={(e) => setJoinMode(e.target.value)}
+                className="bg-[#1a1a1a] border border-glassBorder rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent transition-colors appearance-none"
+              >
+                <option value="OPEN_JOIN">Open join</option>
+                <option value="APPROVAL_REQUIRED">Approval required</option>
+              </select>
             </div>
           </div>
 
