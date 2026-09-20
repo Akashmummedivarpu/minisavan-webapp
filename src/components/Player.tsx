@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { MouseEvent } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Plus, Heart, Loader2, RotateCcw } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Plus, Heart, Loader2, RotateCcw, Shuffle } from 'lucide-react';
 import { useRoomStore } from '../store';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import AddToPlaylistModal from './AddToPlaylistModal';
@@ -23,7 +23,7 @@ const GENTLE_THRESHOLD_MS = 500;
 const GENTLE_RATE = 1.05;
 
 export default function Player() {
-  const { currentSong, roomId, listeners, togglePlay: storeTogglePlay, isPlaying: storeIsPlaying, roomRole, stateTimestamp, currentTime: storeCurrentTime } = useRoomStore();
+  const { currentSong, roomId, listeners, togglePlay: storeTogglePlay, isPlaying: storeIsPlaying, roomRole, stateTimestamp, currentTime: storeCurrentTime, shuffle, toggleShuffle } = useRoomStore();
   const { 
     isPlaying: audioIsPlaying, 
     currentTime: localProgress, 
@@ -364,6 +364,9 @@ export default function Player() {
         {/* Controls & Progress */}
         <div className="flex items-center justify-end md:justify-center w-[45%] md:w-1/3">
           <div className="flex items-center gap-2 md:gap-6 md:mb-2">
+            <button onClick={toggleShuffle} className={`transition-colors ${shuffle ? 'text-accent' : 'text-secondary hover:text-white'} ${controlDisabledClass}`} disabled={!!isListener} title={isListener ? 'Only the host can control playback' : shuffle ? 'Shuffle on' : 'Shuffle off'}>
+              <Shuffle size={16} className="md:w-[18px] md:h-[18px]" />
+            </button>
             <button onClick={playPrevious} className={`text-secondary hover:text-white transition-colors ${controlDisabledClass}`} disabled={!!isListener} title={isListener ? 'Only the host can control playback' : 'Previous'}>
               <SkipBack size={18} fill="currentColor" className="md:w-[20px] md:h-[20px]" />
             </button>

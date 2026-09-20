@@ -4,6 +4,7 @@ import { useRoomStore } from '../store';
 import { Link } from 'react-router-dom';
 import UserProfileDropdown from '../components/UserProfileDropdown';
 import { SongCardSkeleton } from '../components/SkeletonLoader';
+import { coverForRoom } from '../utils/roomCovers';
 import { authenticatedFetch } from '../api';
 import { logger } from '../core/logger';
 
@@ -13,6 +14,7 @@ interface Song {
   image: string;
   artist: string;
   subtitle?: string;
+  reason?: string;
 }
 
 export default function Home() {
@@ -55,7 +57,9 @@ export default function Home() {
     const fetchTrending = async () => {
       setLoadingTrending(true);
       try {
-        const data = await authenticatedFetch('/search?query=trending');
+        // Trending rail skips YouTube so video spam (trolls, reels comps)
+        // doesn't crowd out real tracks.
+        const data = await authenticatedFetch('/search?query=trending&exclude=youtube');
         if (Array.isArray(data)) setTrendingSongs(data.slice(0, 10));
       } catch (error) {
         logger.error('Failed to fetch trending songs', error);
@@ -101,14 +105,12 @@ export default function Home() {
       const fetchRecs = async () => {
         setLoadingRecs(true);
         try {
-          // The backend expects artist and optionally title
-          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/recommendations?artist=${encodeURIComponent(currentSong.artist)}&title=${encodeURIComponent(currentSong.title || '')}`);
-          if (response.ok) {
-            const data = await response.json();
-            // Data might be an array of songs
-            if (Array.isArray(data)) {
-              setRecommendations(data.slice(0, 10)); // Top 10 recs
-            }
+          // Authenticated so the backend can personalize from likes + history
+          // (works logged-out too — falls back to artist-based picks).
+          const data = await authenticatedFetch(`/recommendations?artist=${encodeURIComponent(currentSong.artist)}&title=${encodeURIComponent(currentSong.title || '')}`);
+          // Data might be an array of songs
+          if (Array.isArray(data)) {
+            setRecommendations(data.slice(0, 10)); // Top 10 recs
           }
         } catch (error) {
           logger.error("Failed to fetch recommendations", error);
@@ -246,6 +248,9 @@ export default function Home() {
                   </div>
                   <h3 className="text-sm font-bold mb-0.5 line-clamp-1">{song.title}</h3>
                   <p className="text-xs text-[var(--color-secondary)] font-medium line-clamp-1">{song.artist}</p>
+                  {song.reason && (
+                    <p className="text-[11px] text-accent/80 font-medium line-clamp-1 mt-0.5">{song.reason}</p>
+                  )}
                 </div>
               ))
             ) : (
@@ -301,7 +306,7 @@ export default function Home() {
             playingRooms.map(room => (
               <Link to={`/rooms/${room._id}`} key={room._id} className="shrink-0 w-[150px] snap-start cursor-pointer group no-underline text-white">
                 <div className="w-[150px] h-[150px] rounded-[20px] overflow-hidden relative mb-3">
-                  <img src={room.coverImage || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=300&q=80'} alt={room.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                  <img src={coverForRoom(room)} alt={room.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent"></div>
                   {/* Live badge */}
                   <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-red-500/90 px-2 py-0.5 rounded-full">

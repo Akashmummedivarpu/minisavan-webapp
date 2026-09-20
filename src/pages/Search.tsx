@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search as SearchIcon, Play, Plus, X } from 'lucide-react';
+import { Search as SearchIcon, Play, Plus, X, ListPlus } from 'lucide-react';
 import { useRoomStore } from '../store';
 import AddToPlaylistModal from '../components/AddToPlaylistModal';
 import AuthModal from '../components/AuthModal';
@@ -23,7 +23,8 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const { user, setQueue } = useRoomStore();
+  const { user, setQueue, roomId, roomRole, queueAddSong } = useRoomStore();
+  const canQueue = !!user && !!roomId && roomRole !== 'MEMBER';
 
   useEffect(() => {
     if (!query.trim()) {
@@ -109,6 +110,15 @@ export default function Search() {
                 </div>
                 
                 <div className="flex items-center gap-2">
+                  {canQueue && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); queueAddSong(song); }}
+                      className="w-10 h-10 rounded-full flex items-center justify-center bg-accent/15 hover:bg-accent/30 transition-colors text-accent border border-transparent hover:border-accent/30"
+                      title="Add to room queue"
+                    >
+                      <ListPlus size={18} />
+                    </button>
+                  )}
                   <button 
                     onClick={(e) => handleAddClick(e, song)}
                     className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/20 transition-colors text-secondary hover:text-white border border-transparent hover:border-white/10"

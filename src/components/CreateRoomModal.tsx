@@ -1,24 +1,13 @@
 import React, { useState } from 'react';
 import { X, Loader2, Check } from 'lucide-react';
 import { authenticatedFetch } from '../api';
+import { ROOM_COVERS } from '../utils/roomCovers';
 
 interface CreateRoomModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRoomCreated: (roomId: string) => void;
 }
-
-// Curated cover art options users can pick for their room
-const ROOM_COVERS = [
-  { id: 'concert', label: 'Concert', url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=600&q=80' },
-  { id: 'neon', label: 'Neon Lights', url: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=600&q=80' },
-  { id: 'studio', label: 'Studio', url: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=600&q=80' },
-  { id: 'vinyl', label: 'Vinyl', url: 'https://images.unsplash.com/photo-1521223890158-f9f7c3d5d504?auto=format&fit=crop&w=600&q=80' },
-  { id: 'party', label: 'Party', url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80' },
-  { id: 'headphones', label: 'Headphones', url: 'https://images.unsplash.com/photo-1484704849700-f032a568e944?auto=format&fit=crop&w=600&q=80' },
-  { id: 'dj', label: 'DJ Deck', url: 'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?auto=format&fit=crop&w=600&q=80' },
-  { id: 'night', label: 'Night Sky', url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=600&q=80' },
-];
 
 export default function CreateRoomModal({ isOpen, onClose, onRoomCreated }: CreateRoomModalProps) {
   const [name, setName] = useState('');

@@ -29,12 +29,16 @@ function App() {
   // "Permission denied" while the UI looks joined. Rejoining also cancels the
   // disconnect grace period and re-syncs role/queue/playback state.
   // Runs once per page load; the dashboard's own join logic is a no-op when
-  // already joined, so this can't double-join.
+  // already joined, so this can't double-join. Skipped when landing directly
+  // on a *different* room URL — the dashboard joins that room instead (this
+  // also avoids applying the old room's higher-sequence state over the new
+  // room's fresh state).
   React.useEffect(() => {
     const { user, roomId, joinRoom } = useRoomStore.getState();
-    if (user && roomId) {
-      joinRoom(roomId);
-    }
+    if (!user || !roomId) return;
+    const m = window.location.pathname.match(/^\/rooms\/([^/?#]+)/);
+    if (m && m[1] !== roomId) return;
+    joinRoom(roomId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

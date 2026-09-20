@@ -18,6 +18,13 @@ interface ChatMessage {
   createdAt: number;
 }
 
+interface RoomReaction {
+  id: string;
+  emoji: string;
+  username: string;
+  timestamp: number;
+}
+
 export type PlaybackMode = 'PERSONAL' | 'ROOM';
 
 interface RoomState {
@@ -52,6 +59,9 @@ interface RoomState {
   // Approval-required join flow (M6)
   pendingRequests: any[];
   joinRequested: boolean; // current user has a pending join request for the viewed room
+  // Incoming live reactions (ephemeral overlay feed, pruned after a few seconds)
+  reactions: RoomReaction[];
+  pruneReactions: () => void;
 
   // Personal queue saved when entering room
   savedQueue: any[];
@@ -60,11 +70,16 @@ interface RoomState {
   // Queue & Playlist State
   queue: any[];
   currentIndex: number;
+  shuffle: boolean;
+  toggleShuffle: () => void;
 
   joinRoom: (roomId: string, inviteCode?: string) => void;
   leaveRoom: () => void;
   approveJoinRequest: (userId: string) => void;
   denyJoinRequest: (userId: string) => void;
+  queueAddSong: (song: any) => void;
+  queueRemoveItem: (queueItemId: string) => void;
+  queuePlayItem: (queueItemId: string) => void;
   playSong: (song: any) => void;
   togglePlay: () => void;
   seek: (time: number) => void;
@@ -202,6 +217,24 @@ function registerSocketListeners() {
     useRoomStore.setState({ roomId: null, roomRole: null, isPlaying: false, currentSong: null, messages: [], mode: 'PERSONAL', roomMeta: null, roomNotice: data.message || 'Room ended' });
   });
 
+  socket.on('room:reaction', (data) => {
+    useRoomStore.setState((state) => ({
+      reactions: [
+        ...state.reactions.slice(-29),
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          emoji: data.emoji,
+          username: data.username || 'Someone',
+          timestamp: data.timestamp || Date.now(),
+        },
+      ],
+    }));
+  });
+
+  socket.on('room:queue-updated', (data) => {
+    useRoomStore.setState({ roomQueue: data.queue || [] });
+  });
+
   socket.on('room:queue-cleared', (data) => {
     logger.info('Room queue cleared', data.message);
     useRoomStore.setState({
@@ -242,6 +275,7 @@ export const useRoomStore = create<RoomState>()(
           joinError: null,
           pendingRequests: [],
           joinRequested: false,
+          reactions: [],
         }),
 
         // Mode
@@ -266,6 +300,13 @@ export const useRoomStore = create<RoomState>()(
         clearRoomNotice: () => set({ roomNotice: null }),
         pendingRequests: [],
         joinRequested: false,
+        reactions: [],
+        pruneReactions: () => {
+          const cutoff = Date.now() - 4000;
+          useRoomStore.setState((state) => ({
+            reactions: state.reactions.filter((r) => r.timestamp > cutoff),
+          }));
+        },
 
         // Saved personal state
         savedQueue: [],
@@ -273,6 +314,8 @@ export const useRoomStore = create<RoomState>()(
 
         queue: [],
         currentIndex: -1,
+        shuffle: false,
+        toggleShuffle: () => set((state) => ({ shuffle: !state.shuffle })),
 
         joinRoom: (roomId, inviteCode) => {
           const { user, mode, queue, currentIndex } = get();
@@ -294,11 +337,14 @@ export const useRoomStore = create<RoomState>()(
               currentSong: null,
               pendingRequests: [],
               joinRequested: false,
+              reactions: [],
             });
           }
 
           if (!socket.connected) socket.connect();
-          set({ joinError: null, joinRequested: false });
+          // Reset the sequence guard so the incoming room:state for THIS room
+          // is never rejected as stale next to another room's higher sequence.
+          set({ joinError: null, joinRequested: false, lastSequenceNumber: -1 });
           socket.emit('room:join', { roomId, userId: user.id, inviteCode }, (res: any) => {
             if (res.success) {
               set({ roomId, joinError: null, joinRequested: false });
@@ -332,6 +378,7 @@ export const useRoomStore = create<RoomState>()(
             joinError: null,
             pendingRequests: [],
             joinRequested: false,
+            reactions: [],
             // Restore personal queue
             queue: savedQueue,
             currentIndex: savedIndex,
@@ -392,6 +439,25 @@ export const useRoomStore = create<RoomState>()(
           if (roomId) socket.emit('room:deny-request', { roomId, userId });
         },
 
+        // Room queue management (ADMIN/CONTROLLER only — mirrors playSong guard)
+        queueAddSong: (song) => {
+          const { roomId, roomRole } = get();
+          if (roomId && roomRole === 'MEMBER') return;
+          if (roomId && song) socket.emit('room:queue-add', { roomId, song });
+        },
+
+        queueRemoveItem: (queueItemId) => {
+          const { roomId, roomRole } = get();
+          if (roomId && roomRole === 'MEMBER') return;
+          if (roomId && queueItemId) socket.emit('room:queue-remove', { roomId, queueItemId });
+        },
+
+        queuePlayItem: (queueItemId) => {
+          const { roomId, roomRole } = get();
+          if (roomId && roomRole === 'MEMBER') return;
+          if (roomId && queueItemId) socket.emit('room:queue-play', { roomId, queueItemId });
+        },
+
         setQueue: (queue, startIndex = 0) => {
           set({ queue, currentIndex: startIndex });
           if (queue.length > 0) {
@@ -404,8 +470,16 @@ export const useRoomStore = create<RoomState>()(
         },
 
         playNext: () => {
-          const { queue, currentIndex, playSong } = get();
-          if (currentIndex < queue.length - 1) {
+          const { queue, currentIndex, playSong, shuffle } = get();
+          if (shuffle && queue.length > 1) {
+            // Shuffled: jump to a random track other than the current one
+            let nextIndex = currentIndex;
+            while (nextIndex === currentIndex) {
+              nextIndex = Math.floor(Math.random() * queue.length);
+            }
+            set({ currentIndex: nextIndex });
+            playSong(queue[nextIndex]);
+          } else if (currentIndex < queue.length - 1) {
             const nextIndex = currentIndex + 1;
             set({ currentIndex: nextIndex });
             playSong(queue[nextIndex]);
@@ -463,7 +537,7 @@ export const useRoomStore = create<RoomState>()(
       // Volatile playback state (song, queue, chat, role) is re-synced on rejoin.
       // NOTE: rejoining happens in App's boot effect (not onRehydrateStorage),
       // because it needs the hydrated state AND must run exactly once per load.
-      partialize: (state) => ({ user: state.user, token: state.token, roomId: state.roomId, mode: state.mode }),
+      partialize: (state) => ({ user: state.user, token: state.token, roomId: state.roomId, mode: state.mode, shuffle: state.shuffle }),
     }
   )
 );
